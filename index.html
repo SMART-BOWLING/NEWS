@@ -110,23 +110,19 @@ const EXPORT_SIZE = 2048;
 const FONT_BASE = 16;
 
 /*
-  ВАЖНО:
-  - Тёмная часть плашки (с текстом) масштабируется от ползунка шрифта.
-  - Красная нижняя часть — ФИКСИРОВАННАЯ, как при font-size:25px.
-    То есть её высота, отступы, размеры логотипов НЕ меняются
-    при движении ползунка.
-  - Нижняя красная плашка зафиксирована в DESIGN-единицах и
-    масштабируется только вместе с экспортом (÷ DESIGN × S).
+  Нижняя красная плашка — ФИКСИРОВАННАЯ (как при font-size: 25px),
+  не зависит от ползунка шрифта.
+  4-я иконка (ссылка) сделана меньше остальных.
 */
 const BANNER_FIXED = {
-  // зафиксировано как будто font-size:25px (коэффициент 25/16)
-  borderBottom: 2 * (25/16),      // 3.125
-  bottomHeight: 36 * (25/16),     // 56.25
-  redPadH: 20 * (25/16),          // 31.25
-  redGap: 10 * (25/16),           // 15.625
-  logoFirstH: 22 * (25/16),       // 34.375
-  logoSmallH: 16 * (25/16),       // 25
-  logoLastH: 22 * (25/16),        // 34.375
+  borderBottom: 2 * (25/16),
+  bottomHeight: 36 * (25/16),
+  redPadH: 20 * (25/16),
+  redGap: 10 * (25/16),
+  logoFirstH: 22 * (25/16),
+  logoSmallH: 16 * (25/16),
+  logoLinkH:  12 * (25/16),  // ← уменьшена (было 16 → стало 12)
+  logoLastH:  22 * (25/16),
   bgRed: '#dc143c',
   borderBottomColor: '#000',
 };
@@ -268,11 +264,9 @@ async function paint(canvas, S){
   c.imageSmoothingEnabled = true;
   c.imageSmoothingQuality = 'high';
 
-  // Фон
   c.fillStyle = st.bg;
   c.fillRect(0, 0, S, S);
 
-  // Картинка
   if(st.loaded && currentImg && currentImg.naturalWidth){
     const ratio = st.bw / st.bh;
     let fwD, fhD;
@@ -291,26 +285,23 @@ async function paint(canvas, S){
     c.restore();
   }
 
-  /* ---------- МЕТРИКИ ---------- */
   const tm = topMetrics();
 
-  // Верхняя часть — масштабируется с ползунком
   const borderTop    = tm.borderTop * k;
   const topPadV      = tm.topPadV * k;
   const topPadH      = tm.topPadH * k;
   const mainFontPx   = tm.mainFontPx * k;
   const lineHeightPx = mainFontPx * tm.lineHeight;
 
-  // Нижняя часть — ФИКСИРОВАННАЯ (не зависит от ползунка)
   const borderBottom = BANNER_FIXED.borderBottom * k;
   const bottomHeight = BANNER_FIXED.bottomHeight * k;
   const redPadH      = BANNER_FIXED.redPadH * k;
   const redGap       = BANNER_FIXED.redGap * k;
   const logoFirstH   = BANNER_FIXED.logoFirstH * k;
   const logoSmallH   = BANNER_FIXED.logoSmallH * k;
+  const logoLinkH    = BANNER_FIXED.logoLinkH * k;
   const logoLastH    = BANNER_FIXED.logoLastH * k;
 
-  /* ---------- ТЕКСТ ---------- */
   c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
   const maxTextWidth = S - topPadH * 2;
   const lines = layoutText(c, st.text, maxTextWidth);
@@ -321,16 +312,13 @@ async function paint(canvas, S){
   const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
   const bannerY = S - bannerH;
 
-  // Верхняя рамка
   c.fillStyle = BANNER_TOP.borderTopColor;
   c.fillRect(0, bannerY, S, borderTop);
 
-  // Тёмная часть
   const topPartY = bannerY + borderTop;
   c.fillStyle = BANNER_TOP.bgTop;
   c.fillRect(0, topPartY, S, topPartH);
 
-  // Текст
   if(lines.length && st.text){
     c.save();
     c.fillStyle = BANNER_TOP.textColor;
@@ -344,18 +332,16 @@ async function paint(canvas, S){
     c.restore();
   }
 
-  // Чёрная линия
   c.fillStyle = BANNER_FIXED.borderBottomColor;
   c.fillRect(0, topPartY + topPartH, S, borderBottom);
 
-  // Красная часть (фиксированная)
   const redY = topPartY + topPartH + borderBottom;
   c.fillStyle = BANNER_FIXED.bgRed;
   c.fillRect(0, redY, S, bottomHeight);
 
-  // Логотипы (фиксированные)
   const midY = redY + bottomHeight / 2;
-  const heights = [logoFirstH, logoSmallH, logoSmallH, logoSmallH, logoLastH];
+  // 1: logo, 2: instagram, 3: telegram, 4: link (меньше), 5: right
+  const heights = [logoFirstH, logoSmallH, logoSmallH, logoLinkH, logoLastH];
   let xPos = redPadH;
   for(let i=0;i<heights.length;i++){
     const src = bottomImgs[i];
