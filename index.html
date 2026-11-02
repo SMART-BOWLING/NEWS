@@ -20,11 +20,8 @@ body{display:flex;flex-direction:column;height:100vh}
 .hint{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mu);font-size:13px;text-align:center;pointer-events:none}
 .hint i{width:34px;height:34px}
 .wrap:not(.empty) .hint{display:none}
-
-/* Один-единственный canvas внутри wrap — и превью, и «сцена» */
 #cv{display:block;width:100%;height:100%;position:absolute;inset:0;z-index:1;pointer-events:none}
 
-/* ===== ПАНЕЛЬ ===== */
 .panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
 .ctl{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;display:flex;align-items:center;flex:0 1 240px;min-width:190px}
 .row{display:flex;align-items:center;gap:6px;width:100%}
@@ -101,39 +98,47 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 lucide.createIcons();
 const $=id=>document.getElementById(id);
 const wrap=$('wrap'), cvEl=$('cv');
-const ctx = cvEl.getContext('2d');
 const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
 const ci=$('ci'),hx=$('hx'),sw=$('sw');
 const cbIn1=$('cbIn1');
 
 /* ============================================================
-   ЭТАЛОННАЯ ГЕОМЕТРИЯ
-   Всё рисуется в DESIGN-координатах (1000×1000).
-   Превью = тот же canvas, CSS-растянутый.
-   Экспорт = тот же canvas, но 2048×2048 пикселей.
+   ЭТАЛОННАЯ ГЕОМЕТРИЯ — всё в DESIGN-координатах (1000×1000)
    ============================================================ */
 const DESIGN = 1000;
 const EXPORT_SIZE = 2048;
+const FONT_BASE = 16;
 
-const FONT_BASE = 16;  // px, база для расчёта плашки
+/*
+  ВАЖНО:
+  - Тёмная часть плашки (с текстом) масштабируется от ползунка шрифта.
+  - Красная нижняя часть — ФИКСИРОВАННАЯ, как при font-size:25px.
+    То есть её высота, отступы, размеры логотипов НЕ меняются
+    при движении ползунка.
+  - Нижняя красная плашка зафиксирована в DESIGN-единицах и
+    масштабируется только вместе с экспортом (÷ DESIGN × S).
+*/
+const BANNER_FIXED = {
+  // зафиксировано как будто font-size:25px (коэффициент 25/16)
+  borderBottom: 2 * (25/16),      // 3.125
+  bottomHeight: 36 * (25/16),     // 56.25
+  redPadH: 20 * (25/16),          // 31.25
+  redGap: 10 * (25/16),           // 15.625
+  logoFirstH: 22 * (25/16),       // 34.375
+  logoSmallH: 16 * (25/16),       // 25
+  logoLastH: 22 * (25/16),        // 34.375
+  bgRed: '#dc143c',
+  borderBottomColor: '#000',
+};
 
-const BANNER = {
+const BANNER_TOP = {
   borderTop: 2,
   topPadV: 16,
   topPadH: 19.2,
   mainFontPx: 28.8,
   lineHeight: 1.2,
-  borderBottom: 2,
-  bottomHeight: 36,
-  redPadH: 20,
-  redGap: 10,
-  logoFirstH: 22,
-  logoSmallH: 16,
-  logoLastH: 22,
   bgTop: '#1a1c22',
   borderTopColor: '#4a5568',
-  borderBottomColor: '#000',
-  bgRed: '#dc143c',
   textColor: '#ffffff',
   fontFamily: "'Oswald', Arial, sans-serif",
   fontWeight: 500,
@@ -197,7 +202,7 @@ async function loadBottomImages(){
   return bottomImgsPromise;
 }
 
-/* ===== Утилиты цвета ===== */
+/* ===== Цвет ===== */
 const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
 function setBg(c,sync=true){
   const h=normHex(c)||DEF.bg;
@@ -211,35 +216,22 @@ hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background
 hx.onblur=()=>hx.value=st.bg.toUpperCase();
 
 /* ============================================================
-   РАСЧЁТ РАЗМЕРОВ ПЛАШКИ — зависит от шрифта
-   Возвращает всё в DESIGN-единицах.
+   ВЕРХНЯЯ ЧАСТЬ — зависит от ползунка шрифта
    ============================================================ */
-function bannerMetrics(){
-  // коэффициент масштаба всей плашки относительно базового шрифта 16
+function topMetrics(){
   const f = st.fontPx / FONT_BASE;
-
-  const borderTop     = BANNER.borderTop * f;
-  const topPadV       = BANNER.topPadV * f;
-  const topPadH       = BANNER.topPadH * f;
-  const mainFontPx    = BANNER.mainFontPx * f;
-  const lineHeight    = BANNER.lineHeight;
-  const borderBottom  = BANNER.borderBottom * f;
-  const bottomHeight  = BANNER.bottomHeight * f;
-  const redPadH       = BANNER.redPadH * f;
-  const redGap        = BANNER.redGap * f;
-  const logoFirstH    = BANNER.logoFirstH * f;
-  const logoSmallH    = BANNER.logoSmallH * f;
-  const logoLastH     = BANNER.logoLastH * f;
-
   return {
-    f, borderTop, topPadV, topPadH, mainFontPx, lineHeight, borderBottom,
-    bottomHeight, redPadH, redGap, logoFirstH, logoSmallH, logoLastH,
+    f,
+    borderTop:    BANNER_TOP.borderTop * f,
+    topPadV:      BANNER_TOP.topPadV * f,
+    topPadH:      BANNER_TOP.topPadH * f,
+    mainFontPx:   BANNER_TOP.mainFontPx * f,
+    lineHeight:   BANNER_TOP.lineHeight,
   };
 }
 
 /* ============================================================
-   ПЕРЕНОС ТЕКСТА — детерминированный, независим от DOM
-   Разбиваем на слова и переносим по ширине текстовой области.
+   ПЕРЕНОС ТЕКСТА
    ============================================================ */
 function layoutText(ctx, text, maxWidth){
   if(!text) return [];
@@ -247,10 +239,7 @@ function layoutText(ctx, text, maxWidth){
   const lines = [];
   const paragraphs = text.split('\n');
   for(const para of paragraphs){
-    if(para === ''){
-      lines.push('');
-      continue;
-    }
+    if(para === ''){ lines.push(''); continue; }
     const words = para.split(/\s+/);
     let line = '';
     for(const word of words){
@@ -270,109 +259,103 @@ function layoutText(ctx, text, maxWidth){
 }
 
 /* ============================================================
-   ГЛАВНАЯ ФУНКЦИЯ РИСОВАНИЯ
-   Рисует всё в холст размером S×S (в пикселях этого холста).
-   Используется И для превью, И для экспорта — гарантия
-   «что вижу, то и сохраняю».
+   ГЛАВНАЯ ФУНКЦИЯ РИСОВАНИЯ (превью + экспорт)
    ============================================================ */
 async function paint(canvas, S){
   const c = canvas.getContext('2d', {alpha:false});
-  const k = S / DESIGN; // масштаб DESIGN → пиксели холста
+  const k = S / DESIGN;
 
   c.imageSmoothingEnabled = true;
   c.imageSmoothingQuality = 'high';
 
-  // 1) Фон
+  // Фон
   c.fillStyle = st.bg;
   c.fillRect(0, 0, S, S);
 
-  // 2) Основная картинка
+  // Картинка
   if(st.loaded && currentImg && currentImg.naturalWidth){
     const ratio = st.bw / st.bh;
     let fwD, fhD;
     if(ratio >= 1){ fwD = DESIGN; fhD = DESIGN / ratio; }
     else          { fhD = DESIGN; fwD = DESIGN * ratio; }
-
     const w = fwD * st.scale * k;
     const h = fhD * st.scale * k;
     const cx = st.x / 100 * S;
     const cy = st.y / 100 * S;
-
     c.save();
     c.beginPath();
     c.rect(0, 0, S, S);
     c.clip();
-    try{
-      c.drawImage(currentImg, cx - w/2, cy - h/2, w, h);
-    }catch(e){
-      console.warn('drawImage main failed', e);
-    }
+    try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); }
+    catch(e){ console.warn('drawImage main failed', e); }
     c.restore();
   }
 
-  // 3) Плашка
-  const m = bannerMetrics();
-  const borderTop    = m.borderTop    * k;
-  const topPadV      = m.topPadV      * k;
-  const topPadH      = m.topPadH      * k;
-  const mainFontPx   = m.mainFontPx   * k;
-  const borderBottom = m.borderBottom * k;
-  const bottomHeight = m.bottomHeight * k;
-  const redPadH      = m.redPadH      * k;
-  const redGap       = m.redGap       * k;
-  const logoFirstH   = m.logoFirstH   * k;
-  const logoSmallH   = m.logoSmallH   * k;
-  const logoLastH    = m.logoLastH    * k;
+  /* ---------- МЕТРИКИ ---------- */
+  const tm = topMetrics();
 
-  // 3.1) Подготовим текст
-  c.font = `${BANNER.fontWeight} ${mainFontPx}px ${BANNER.fontFamily}`;
+  // Верхняя часть — масштабируется с ползунком
+  const borderTop    = tm.borderTop * k;
+  const topPadV      = tm.topPadV * k;
+  const topPadH      = tm.topPadH * k;
+  const mainFontPx   = tm.mainFontPx * k;
+  const lineHeightPx = mainFontPx * tm.lineHeight;
+
+  // Нижняя часть — ФИКСИРОВАННАЯ (не зависит от ползунка)
+  const borderBottom = BANNER_FIXED.borderBottom * k;
+  const bottomHeight = BANNER_FIXED.bottomHeight * k;
+  const redPadH      = BANNER_FIXED.redPadH * k;
+  const redGap       = BANNER_FIXED.redGap * k;
+  const logoFirstH   = BANNER_FIXED.logoFirstH * k;
+  const logoSmallH   = BANNER_FIXED.logoSmallH * k;
+  const logoLastH    = BANNER_FIXED.logoLastH * k;
+
+  /* ---------- ТЕКСТ ---------- */
+  c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
   const maxTextWidth = S - topPadH * 2;
   const lines = layoutText(c, st.text, maxTextWidth);
-  const lineHeightPx = mainFontPx * m.lineHeight;
-  const textBlockH = Math.max(lineHeightPx, lines.length * lineHeightPx);
+  const lineCount = Math.max(1, lines.length);
+  const textBlockH = lineCount * lineHeightPx;
   const topPartH = topPadV * 2 + textBlockH;
 
   const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
   const bannerY = S - bannerH;
 
-  // 3.2) Верхняя рамка
-  c.fillStyle = BANNER.borderTopColor;
+  // Верхняя рамка
+  c.fillStyle = BANNER_TOP.borderTopColor;
   c.fillRect(0, bannerY, S, borderTop);
 
-  // 3.3) Тёмная часть
+  // Тёмная часть
   const topPartY = bannerY + borderTop;
-  c.fillStyle = BANNER.bgTop;
+  c.fillStyle = BANNER_TOP.bgTop;
   c.fillRect(0, topPartY, S, topPartH);
 
-  // 3.4) Текст
-  if(lines.length){
+  // Текст
+  if(lines.length && st.text){
     c.save();
-    c.fillStyle = BANNER.textColor;
+    c.fillStyle = BANNER_TOP.textColor;
     c.textBaseline = 'middle';
     c.textAlign = 'left';
-    c.font = `${BANNER.fontWeight} ${mainFontPx}px ${BANNER.fontFamily}`;
-    // Центрируем текстовый блок по вертикали в topPartH
+    c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
     const firstLineCenterY = topPartY + topPadV + lineHeightPx / 2;
     for(let i=0;i<lines.length;i++){
-      const y = firstLineCenterY + i * lineHeightPx;
-      c.fillText(lines[i], topPadH, y);
+      c.fillText(lines[i], topPadH, firstLineCenterY + i * lineHeightPx);
     }
     c.restore();
   }
 
-  // 3.5) Чёрная линия
-  c.fillStyle = BANNER.borderBottomColor;
+  // Чёрная линия
+  c.fillStyle = BANNER_FIXED.borderBottomColor;
   c.fillRect(0, topPartY + topPartH, S, borderBottom);
 
-  // 3.6) Красная часть
+  // Красная часть (фиксированная)
   const redY = topPartY + topPartH + borderBottom;
-  c.fillStyle = BANNER.bgRed;
+  c.fillStyle = BANNER_FIXED.bgRed;
   c.fillRect(0, redY, S, bottomHeight);
 
-  // 3.7) Логотипы
+  // Логотипы (фиксированные)
   const midY = redY + bottomHeight / 2;
   const heights = [logoFirstH, logoSmallH, logoSmallH, logoSmallH, logoLastH];
-
   let xPos = redPadH;
   for(let i=0;i<heights.length;i++){
     const src = bottomImgs[i];
@@ -381,9 +364,8 @@ async function paint(canvas, S){
     const w = src.naturalWidth * (h / src.naturalHeight);
     const isLast = (i === heights.length - 1);
     const drawX = isLast ? (S - redPadH - w) : xPos;
-    try{
-      c.drawImage(src, drawX, midY - h/2, w, h);
-    }catch(e){ console.warn('drawImage logo failed', i, e); }
+    try{ c.drawImage(src, drawX, midY - h/2, w, h); }
+    catch(e){ console.warn('drawImage logo failed', i, e); }
     if(!isLast) xPos += w + redGap;
   }
 }
@@ -411,7 +393,6 @@ async function renderPreview(){
     const rect = wrap.getBoundingClientRect();
     const cssSize = Math.max(1, Math.round(rect.width));
     const px = Math.round(cssSize * dpr);
-
     if(cvEl.width !== px || cvEl.height !== px){
       cvEl.width = px;
       cvEl.height = px;
@@ -443,8 +424,6 @@ function ensureReady(){
 /* ============================================================
    ВЗАИМОДЕЙСТВИЕ
    ============================================================ */
-function measure(){ /* не нужно — превью само по размеру wrap */ }
-
 function setFont(p){
   const v = Math.max(6, Math.min(96, parseFloat(p) || FONT_BASE));
   st.fontPx = v;
