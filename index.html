@@ -664,4 +664,153 @@ wrap.addEventListener('wheel', e=>{
   setScale(st.scale * (1 - e.deltaY * .0015));
 },{passive:false});
 
-addEventListener('resize', () => { render
+addEventListener('resize', () => { renderPreview(); });
+
+/* ============================================================
+   ЭКСПОРТ
+   ============================================================ */
+let exportBusy = false;
+
+async function renderExportCanvas(){
+  await ensureReady();
+  const cv = document.createElement('canvas');
+  cv.width = EXPORT_SIZE;
+  cv.height = EXPORT_SIZE;
+  await paint(cv, EXPORT_SIZE, true); // ← с шарпом
+  return cv;
+}
+
+async function downloadCanvas(){
+  if(exportBusy || !st.loaded) return;
+  exportBusy = true;
+  const btn = $('dl');
+  const oldHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-circle"></i>Сохранение…';
+  lucide.createIcons();
+  try{
+    const cv = await renderExportCanvas();
+    const blob = await new Promise((resolve,reject)=>{
+      cv.toBlob(b => b ? resolve(b) : reject(new Error('PNG не создан')), 'image/png', 1);
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'canvas.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  }catch(err){
+    console.error('Ошибка сохранения:', err);
+    alert('Не удалось сохранить картинку. Откройте консоль браузера — там будет причина.');
+  }finally{
+    exportBusy = false;
+    btn.disabled = !st.loaded;
+    btn.innerHTML = oldHTML;
+    lucide.createIcons();
+  }
+}
+$('dl').onclick = downloadCanvas;
+
+async function shareProject(){
+  try{
+    const payload = {
+      x: st.x, y: st.y, scale: st.scale,
+      bg: st.bg,
+      text: st.text,
+      font: st.fontPx,
+      sharpen: st.sharpen,
+      img: st.loaded && currentImg ? currentImg.src : null
+    };
+    const cv = await renderExportCanvas();
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const file = new File([blob], 'canvas.png', {type:'image/png'});
+
+    if (navigator.canShare && navigator.canShare({files:[file]})) {
+      await navigator.share({ files:[file], title:'Холст', text:'Моя картинка' });
+      return;
+    }
+    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+    const url = location.origin + location.pathname + '?state=' + encoded;
+
+    if (navigator.share) {
+      await navigator.share({ title:'Холст', text:'Открой мою картинку', url });
+    } else {
+      await navigator.clipboard.writeText(url);
+      const btn = $('sh');
+      const old = btn.innerHTML;
+      btn.innerHTML = '<i data-lucide="check"></i>Скопировано';
+      lucide.createIcons();
+      setTimeout(()=>{ btn.innerHTML = old; lucide.createIcons(); }, 1800);
+    }
+  }catch(e){
+    if(e.name !== 'AbortError') console.error(e);
+  }
+}
+$('sh').onclick = shareProject;
+
+/* Восстановление из ссылки */
+(async function restoreFromURL(){
+  const params = new URLSearchParams(location.search);
+  const raw = params.get('state');
+  if(!raw) return;
+  try{
+    const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
+    if(p.bg) setBg(p.bg, true);
+    if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
+    if(p.font) setFont(p.font);
+
+    if(p.img){
+      await new Promise((res)=>{
+        const im = new Image();
+        im.onload = async ()=>{
+          try{ await im.decode?.(); }catch(e){}
+          currentImg = im;
+          st.bw = im.naturalWidth; st.bh = im.naturalHeight;
+          st.loaded = true;
+          wrap.classList.remove('empty');
+          $('dl').disabled = false;
+          st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
+          if(typeof p.sharpen === 'boolean'){
+            st.sharpen = p.sharpen;
+            st.sharpenAuto = false;
+          }
+          sc.value = (st.scale * 100).toFixed(1);
+          scV.textContent = (st.scale * 100).toFixed(1) + '%';
+          setSharpenUI();
+          schedulePaint();
+          res();
+        };
+        im.onerror = res;
+        im.src = p.img;
+      });
+    }
+  }catch(err){ console.warn('Не удалось восстановить состояние', err); }
+})();
+
+/* Сброс */
+$('rs').onclick = () => {
+  st.loaded = false;
+  st.x = 50; st.y = 50; st.scale = 1;
+  currentImg = null;
+  st.sharpen = false;
+  st.sharpenAuto = true;
+  wrap.classList.add('empty');
+  $('fi').value = '';
+  $('dl').disabled = true;
+  sc.value = 100; scV.textContent = '100.0%';
+  cbIn1.value = ''; st.text = '';
+  setSharpenUI();
+  setFont(DEF.font);
+  setBg(DEF.bg, true);
+};
+
+/* Инициализация */
+setSharpenUI();
+setFont(DEF.font);
+setBg(DEF.bg, true);
+ensureReady().then(() => renderPreview());
+</script>
+</body>
+</html>
