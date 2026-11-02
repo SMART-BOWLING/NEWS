@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Холст</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--bg:#1e1f22;--s:#2b2d31;--s2:#313338;--bd:#3f4147;--tx:#e6e6e8;--mu:#9a9ca3;--bl:#2e88f7;--pk:#e5456a;--gr:#13d679;--r:10px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:14px -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
+body{display:flex;flex-direction:column;height:100vh}
+.stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:24px;background:#1a1b1e}
+.wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none;container-type:size}
+.wrap.drag{cursor:grabbing}
+.wrap.empty{cursor:pointer;border:2px dashed var(--bd)}
+.wrap.empty::before{content:"";position:absolute;inset:0;z-index:0;background:repeating-linear-gradient(45deg,#1c1d20,#1c1d20 12px,#202226 12px,#202226 24px)}
+.wrap:not(.empty)::before{display:none}
+.hint{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mu);font-size:13px;text-align:center;pointer-events:none}
+.hint i{width:34px;height:34px}
+.wrap:not(.empty) .hint{display:none}
+#img{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;display:none;z-index:1}
+#img.on{display:block}
+
+/* ===== ПЛАШКА ===== */
+.banner{position:absolute;left:0;bottom:0;right:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;font-family:'Oswald',Arial,sans-serif;background:#1a1c22;color:#fff;border-top:2px solid #4a5568;font-size:var(--bf)}
+.banner .top-part{background:#1a1c22;padding:1em 1.2em;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;position:relative}
+.banner .text-wrap{flex:1;text-align:left;padding-right:1em;line-height:1.2;text-transform:none}
+.banner .main-txt{font-family:'Oswald',Arial,sans-serif;font-weight:500;font-size:1.8em;letter-spacing:.02em;color:#fff}
+
+/* Нижняя часть — теперь фоновая картинка на всю ширину */
+.banner .bottom-part{
+  height:32px;
+  flex:0 0 auto;
+  background-image:url("https://res.cloudinary.com/dplmdnxvk/image/upload/v1793630615/nhp9smb04hqlvexsx9ce.png");
+  background-size:100% 100%;
+  background-repeat:no-repeat;
+  background-position:center;
+}
+
+/* ===== ПАНЕЛЬ ===== */
+.panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.ctl{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;display:flex;align-items:center;flex:0 1 240px;min-width:190px}
+.row{display:flex;align-items:center;gap:6px;width:100%}
+.ib{width:24px;height:24px;padding:0;border:1px solid var(--bd);background:var(--s2);color:var(--tx);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ib:hover{background:#3a3d44}
+.ib i{width:13px;height:13px}
+input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:var(--bl)}
+.val{min-width:56px;text-align:right;font-size:11px;color:var(--mu);cursor:pointer;border-radius:4px;padding:2px 4px}
+.val:hover{background:var(--s2);color:var(--tx)}
+.bg{flex:0 1 240px}
+.pw{position:relative;display:inline-flex;align-items:center;gap:8px;flex:1}
+.sw{width:28px;height:28px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;flex:0 0 auto;background:#111214}
+.hex{flex:1;min-width:0;background:none;border:none;color:var(--tx);font:12px ui-monospace,monospace;outline:none;padding:4px 2px;text-transform:uppercase}
+#ci{position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:36px;border:none;border-radius:var(--r);font:600 12px inherit;color:#fff;cursor:pointer;white-space:nowrap}
+.btn i{width:14px;height:14px}
+.u{background:var(--bl)}.u:hover{background:#1e74e0}
+.d{background:var(--gr)}.d:hover{background:#0fbb69}
+.d:disabled{background:#4a4d54;color:#888b92;cursor:not-allowed}
+.r{background:var(--pk)}.r:hover{background:#cf3459}
+.sh{background:#7c5cff}.sh:hover{background:#6a4be0}
+#fi{display:none}
+.combo-inputs{display:flex;flex:1 1 100%;gap:8px;flex-wrap:wrap;margin-top:8px}
+.combo-inputs input{flex:1 1 200px;background:var(--s2);border:1px solid var(--bd);color:var(--tx);padding:6px 10px;border-radius:6px;font-size:12px;outline:none}
+@media(max-width:760px){.stage{padding:12px}.wrap{width:min(70vh,100%)}.panel{padding:8px 8px 16px;gap:6px}.ctl{flex:1 1 100%;min-width:0}.btn{flex:1 1 auto;justify-content:center}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="wrap empty" id="wrap">
+    <img id="img" alt="">
+    
+    <div class="banner" id="bn">
+      <div class="top-part">
+        <div class="text-wrap">
+          <div class="main-txt" id="cbL1"></div>
+        </div>
+      </div>
+      <div class="bottom-part"></div>
+    </div>
+
+    <div class="hint"><i data-lucide="image-plus"></i><span>Нажмите или перетащите картинку</span></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="ctl"><div class="row">
+    <button class="ib" data-t="sc" data-s="-1"><i data-lucide="minus"></i></button>
+    <input type="range" id="sc" min="5" max="400" value="100" step="0.1">
+    <button class="ib" data-t="sc" data-s="1"><i data-lucide="plus"></i></button>
+    <span class="val" id="scV">100.0%</span>
+  </div></div>
+
+  <div class="ctl"><div class="row">
+    <button class="ib" data-t="fs" data-s="-0.5"><i data-lucide="minus"></i></button>
+    <input type="range" id="fs" min="6" max="96" value="16" step="0.1">
+    <button class="ib" data-t="fs" data-s="0.5"><i data-lucide="plus"></i></button>
+    <span class="val" id="fsV">16.0px</span>
+  </div></div>
+
+  <div class="ctl bg"><div class="row">
+    <div class="pw">
+      <button class="sw" id="sw" title="Цвет фона"></button>
+      <input type="color" id="ci" value="#111214">
+      <input class="hex" id="hx" value="#111214" maxlength="7" spellcheck="false">
+    </div>
+  </div></div>
+
+  <div class="combo-inputs">
+    <input type="text" id="cbIn1" placeholder="Текст темной плашки">
+  </div>
+
+  <div class="acts">
+    <input type="file" id="fi" accept="image/*">
+    <label for="fi" class="btn u"><i data-lucide="upload"></i>Загрузить фон</label>
+    <button id="sh" class="btn sh"><i data-lucide="share-2"></i>Поделиться</button>
+    <button id="dl" class="btn d" disabled><i data-lucide="download"></i>Скачать</button>
+    <button id="rs" class="btn r"><i data-lucide="rotate-ccw"></i>Сбросить</button>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+const $=id=>document.getElementById(id);
+const wrap=$('wrap'),img=$('img'),bn=$('bn');
+const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
+const ci=$('ci'),hx=$('hx'),sw=$('sw');
+const cbIn1=$('cbIn1');
+
+const DEF={font:16,bg:'#111214'};
+const st={loaded:false,x:50,y:50,scale:1,bw:0,bh:0,fw:0,fh:0,bg:'#111214'};
+let CS=0;
+
+const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
+function setBg(c,sync=true){const h=normHex(c)||DEF.bg;st.bg=h;wrap.style.background=h;if(sync){ci.value=h;hx.value=h.toUpperCase();sw.style.background=h;}}
+sw.onclick=()=>ci.click();
+ci.oninput=e=>setBg(e.target.value);
+hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;wrap.style.background=h;sw.style.background=h;ci.value=h;}};
+hx.onblur=()=>hx.value=st.bg.toUpperCase();
+
+function updateComboText() { $('cbL1').textContent = cbIn1.value; }
+cbIn1.oninput = updateComboText;
+
+function setFont(p){const v=Math.max(6,Math.min(96,parseFloat(p)));bn.style.setProperty('--bf',v+'px');fs.value=v;fsV.textContent=v.toFixed(1)+'px';}
+fs.oninput=e=>setFont(e.target.value);
+fsV.onclick=()=>setFont(DEF.font);
+
+function measure(){CS=wrap.getBoundingClientRect().width;}
+function fit(){if(!st.loaded)return;const r=st.bw/st.bh;if(r>=1){st.fw=CS;st.fh=CS/r;}else{st.fh=CS;st.fw=CS*r;}}
+function draw(){if(!st.loaded)return;const w=st.fw*st.scale,h=st.fh*st.scale;const l=st.x/100*CS-w/2,t=st.y/100*CS-h/2;img.style.width=w+'px';img.style.height=h+'px';img.style.transform=`translate(${l}px,${t}px)`;sc.value=(st.scale*100).toFixed(1);scV.textContent=(st.scale*100).toFixed(1)+'%';}
+function setScale(s){st.scale=Math.min(4,Math.max(.05,s));draw();}
+
+function load(f){if(!f||!f.type.startsWith('image/'))return;const rd=new FileReader();rd.onload=e=>{const im=new Image();im.onload=()=>{st.bw=im.naturalWidth;st.bh=im.naturalHeight;st.loaded=true;st.x=50;st.y=50;st.scale=1;img.src=e.target.result;img.classList.add('on');wrap.classList.remove('empty');measure();fit();draw();$('dl').disabled=false;};im.src=e.target.result;};rd.readAsDataURL(f);}
+$('fi').onchange=e=>load(e.target.files[0]);
+wrap.onclick=()=>{if(!st.loaded)$('fi').click();};
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();load(e.dataTransfer.files[0]);});
+
+let drag=null;
+function down(x,y){if(!st.loaded)return;drag={px:x,py:y,x:st.x,y:st.y};wrap.classList.add('drag');}
+function move(x,y){if(!drag)return;st.x=drag.x+(x-drag.px)/CS*100;st.y=drag.y+(y-drag.py)/CS*100;draw();}
+function up(){drag=null;wrap.classList.remove('drag');}
+wrap.addEventListener('mousedown',e=>{if(e.button!==0)return;e.preventDefault();down(e.clientX,e.clientY);});
+addEventListener('mousemove',e=>move(e.clientX,e.clientY));
+addEventListener('mouseup',up);
+let pinch=null;const td=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+wrap.addEventListener('touchstart',e=>{if(e.touches.length===1)down(e.touches[0].clientX,e.touches[0].clientY);else if(e.touches.length===2)pinch={d:td(e.touches),s:st.scale};},{passive:true});
+wrap.addEventListener('touchmove',e=>{if(e.touches.length===1&&drag){e.preventDefault();move(e.touches[0].clientX,e.touches[0].clientY);}else if(e.touches.length===2&&pinch){e.preventDefault();setScale(pinch.s*td(e.touches)/pinch.d);}},{passive:false});
+wrap.addEventListener('touchend',e=>{if(e.touches.length===0){up();pinch=null;}else if(e.touches.length===1&&pinch){pinch=null;down(e.touches[0].clientX,e.touches[0].clientY);}});
+wrap.addEventListener('wheel',e=>{if(!st.loaded)return;e.preventDefault();setScale(st.scale*(1-e.deltaY*.0015));},{passive:false});
+
+sc.oninput=e=>{st.scale=parseFloat(e.target.value)/100;draw();};
+scV.onclick=()=>{st.scale=1;draw();};
+document.querySelectorAll('.ib').forEach(b=>b.onclick=()=>{const t=b.dataset.t,s=parseFloat(b.dataset.s);if(t==='sc')setScale(st.scale+s/100);else setFont(parseFloat(fs.value)+s);});
+
+addEventListener('resize',()=>{measure();fit();draw();});
+
+/* ===== ЭКСПОРТ ===== */
+function renderCanvas(){
+  const S=2048,cv=document.createElement('canvas');cv.width=cv.height=S;const x=cv.getContext('2d');
+  x.imageSmoothingQuality='high';
+  x.fillStyle=st.bg;x.fillRect(0,0,S,S);
+  if(st.loaded){const w=st.fw*st.scale*S/CS,h=st.fh*st.scale*S/CS,cx=st.x/100*S,cy=st.y/100*S;x.drawImage(img,cx-w/2,cy-h/2,w,h);}
+  
+  const br=bn.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
+  const k=S/wr.width;
+  x.save();
+  x.scale(k, k);
+  x.translate(br.left - wr.left, br.top - wr.top);
+  
+  const topH = bn.querySelector('.top-part').getBoundingClientRect().height;
+  const botH = bn.querySelector('.bottom-part').getBoundingClientRect().height;
+  
+  x.fillStyle = '#1a1c22';
+  x.fillRect(0, 0, br.width, topH);
+  
+  // Нижняя полоса: градиент-заглушка (кросс-доменный PNG не тянется без CORS)
+  const grd = x.createLinearGradient(0, topH, br.width, topH + botH);
+  grd.addColorStop(0, '#34d399');
+  grd.addColorStop(1, '#10b981');
+  x.fillStyle = grd;
+  x.fillRect(0, topH, br.width, botH);
+  
+  x.fillStyle = '#fff';
+  x.font = `500 ${parseFloat(getComputedStyle(bn).fontSize) * 1.8 * k}px Oswald, sans-serif`;
+  x.textBaseline = 'middle';
+  x.fillText(cbIn1.value, 20*k, topH / 2);
+  
+  x.restore();
+  return cv;
+}
+
+$('dl').onclick=()=>{
+  const cv = renderCanvas();
+  cv.toBlob(b=>{if(!b)return;const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='canvas.png';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);},'image/png');
+};
+
+/* ===== ПОДЕЛИТЬСЯ ===== */
+async function shareProject(){
+  try{
+    const payload = {
+      x: st.x, y: st.y, scale: st.scale,
+      bg: st.bg,
+      text: cbIn1.value,
+      font: parseFloat(fs.value),
+      img: st.loaded ? img.src : null
+    };
+
+    const cv = renderCanvas();
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const file = new File([blob], 'canvas.png', {type:'image/png'});
+
+    if (navigator.canShare && navigator.canShare({files:[file]})) {
+      await navigator.share({ files: [file], title: 'Холст', text: 'Моя картинка' });
+      return;
+    }
+
+    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+    const url = location.origin + location.pathname + '?state=' + encoded;
+
+    if (navigator.share) {
+      await navigator.share({ title: 'Холст', text: 'Открой мою картинку', url });
+    } else {
+      await navigator.clipboard.writeText(url);
+      const btn = $('sh');
+      const old = btn.innerHTML;
+      btn.innerHTML = '<i data-lucide="check"></i>Скопировано';
+      lucide.createIcons();
+      setTimeout(()=>{ btn.innerHTML = old; lucide.createIcons(); }, 1800);
+    }
+  }catch(e){
+    if(e.name !== 'AbortError') console.error(e);
+  }
+}
+$('sh').onclick = shareProject;
+
+/* Восстановление из ссылки */
+(async function restoreFromURL(){
+  const params = new URLSearchParams(location.search);
+  const raw = params.get('state');
+  if(!raw) return;
+  try{
+    const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
+    if(p.bg) setBg(p.bg);
+    if(p.text != null){ cbIn1.value = p.text; updateComboText(); }
+    if(p.font) setFont(p.font);
+
+    if(p.img){
+      await new Promise((res)=>{
+        const im = new Image();
+        im.onload = ()=>{
+          st.bw = im.naturalWidth; st.bh = im.naturalHeight;
+          st.loaded = true;
+          img.src = p.img; img.classList.add('on'); wrap.classList.remove('empty');
+          $('dl').disabled = false;
+          measure(); fit();
+          st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
+          draw();
+          res();
+        };
+        im.onerror = res;
+        im.src = p.img;
+      });
+    }
+  }catch(err){ console.warn('Не удалось восстановить состояние', err); }
+})();
+
+/* ===== СБРОС ===== */
+$('rs').onclick=()=>{
+  st.loaded=false;st.x=50;st.y=50;st.scale=1;
+  img.removeAttribute('src');img.classList.remove('on');wrap.classList.add('empty');
+  $('fi').value='';$('dl').disabled=true;
+  sc.value=100;scV.textContent='100.0%';
+  cbIn1.value='';
+  updateComboText();
+  setFont(DEF.font);setBg(DEF.bg);
+};
+
+setFont(DEF.font);setBg(DEF.bg);
+</script>
+</body>
+</html>
