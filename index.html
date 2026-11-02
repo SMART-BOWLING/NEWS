@@ -29,7 +29,6 @@ body{display:flex;flex-direction:column;height:100vh}
 .banner .text-wrap{flex:1;text-align:left;padding-right:1em;line-height:1.2;text-transform:none}
 .banner .main-txt{font-family:'Oswald',Arial,sans-serif;font-weight:500;font-size:1.8em;letter-spacing:.02em;color:#fff}
 
-/* Нижняя часть — одинаковые отступы слева и справа */
 .banner .bottom-part{
   height:36px;
   flex:0 0 auto;
@@ -47,13 +46,8 @@ body{display:flex;flex-direction:column;height:100vh}
   object-fit:contain;
   display:block;
 }
-.banner .bottom-part img:first-child{
-  height:22px;
-}
-.banner .bottom-part img:last-child{
-  margin-left:auto;
-  height:22px;
-}
+.banner .bottom-part img:first-child{ height:22px; }
+.banner .bottom-part img:last-child{ margin-left:auto; height:22px; }
 
 /* ===== ПАНЕЛЬ ===== */
 .panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
@@ -156,9 +150,37 @@ const DEF={font:16,bg:'#111214'};
 const st={loaded:false,x:50,y:50,scale:1,bw:0,bh:0,fw:0,fh:0,bg:'#111214'};
 let CS=0;
 
-/* ===== Загрузка картинок нижней панели для canvas =====
-   Пробуем два способа: CORS-Image и fetch→dataURL.
-   Это надёжнее для Cloudinary и подобных CDN. */
+/* ============================================================
+   ЭТАЛОННАЯ ГЕОМЕТРИЯ ЭКСПОРТА
+   Всё считается в DESIGN-единицах и НЕ зависит от размера окна.
+   ============================================================ */
+const DESIGN = 1000;         // эталонная логическая ширина/высота холста
+const EXPORT_SIZE = 2048;    // итоговый PNG
+const K = EXPORT_SIZE / DESIGN; // константный коэффициент
+
+const BANNER = {
+  borderTop: 2,
+  topPadV: 16,          // 1em при базовом 16
+  topPadH: 19.2,        // 1.2em при базовом 16
+  mainFontPx: 28.8,     // 1.8em при базовом 16
+  lineHeight: 1.2,
+  borderBottom: 2,
+  bottomHeight: 36,
+  redPadH: 20,
+  redGap: 10,
+  logoSmallH: 16,
+  logoFirstH: 22,
+  logoLastH: 22,
+  bgTop: '#1a1c22',
+  borderTopColor: '#4a5568',
+  borderBottomColor: '#000',
+  bgRed: '#dc143c',
+  textColor: '#ffffff',
+  fontFamily: "'Oswald', Arial, sans-serif",
+  fontWeight: 500,
+};
+
+/* ===== Загрузка логотипов нижней панели ===== */
 const BOTTOM_IMGS = [
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png",
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png",
@@ -167,37 +189,43 @@ const BOTTOM_IMGS = [
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png"
 ];
 const bottomImgs = BOTTOM_IMGS.map(() => null);
+let bottomImgsPromise = null;
 
 async function loadBottomImages(){
-  for (let i=0;i<BOTTOM_IMGS.length;i++){
-    if(bottomImgs[i] && bottomImgs[i].naturalWidth) continue;
-    const src = BOTTOM_IMGS[i];
-    try{
-      const resp = await fetch(src, {mode:'cors'});
-      if(!resp.ok) throw new Error('fetch failed');
-      const blob = await resp.blob();
-      const dataUrl = await new Promise(res=>{
-        const fr = new FileReader();
-        fr.onload = ()=>res(fr.result);
-        fr.readAsDataURL(blob);
-      });
-      const im = new Image();
-      await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = dataUrl; });
-      bottomImgs[i] = im;
-    }catch(e){
-      // фолбэк через CORS-Image
+  if(bottomImgsPromise) return bottomImgsPromise;
+  bottomImgsPromise = (async ()=>{
+    for (let i=0;i<BOTTOM_IMGS.length;i++){
+      if(bottomImgs[i] && bottomImgs[i].naturalWidth) continue;
+      const src = BOTTOM_IMGS[i];
       try{
+        const resp = await fetch(src, {mode:'cors'});
+        if(!resp.ok) throw new Error('fetch failed');
+        const blob = await resp.blob();
+        const dataUrl = await new Promise(res=>{
+          const fr = new FileReader();
+          fr.onload = ()=>res(fr.result);
+          fr.readAsDataURL(blob);
+        });
         const im = new Image();
-        im.crossOrigin = 'anonymous';
-        await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = src; });
+        await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = dataUrl; });
+        if(im.decode) { try{ await im.decode(); }catch(e){} }
         bottomImgs[i] = im;
-      }catch(e2){
-        console.warn('Не удалось загрузить картинку для экспорта:', src);
-        bottomImgs[i] = null;
+      }catch(e){
+        try{
+          const im = new Image();
+          im.crossOrigin = 'anonymous';
+          await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = src; });
+          if(im.decode) { try{ await im.decode(); }catch(e){} }
+          bottomImgs[i] = im;
+        }catch(e2){
+          console.warn('Не удалось загрузить картинку для экспорта:', src);
+          bottomImgs[i] = null;
+        }
       }
     }
-  }
-  return bottomImgs;
+    return bottomImgs;
+  })();
+  return bottomImgsPromise;
 }
 
 const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
@@ -244,14 +272,19 @@ document.querySelectorAll('.ib').forEach(b=>b.onclick=()=>{const t=b.dataset.t,s
 
 addEventListener('resize',()=>{measure();fit();draw();});
 
-/* ===== ЭКСПОРТ — максимально точно как видно на холсте ===== */
-const EXPORT_SIZE = 2048;
-let exportBusy = false;
+/* ============================================================
+   ЭКСПОРТ — детерминированный, не зависит от DOM/DPR/масштаба
+   ============================================================ */
 
 async function waitForFonts(){
-  if(document.fonts && document.fonts.ready){
-    try{ await document.fonts.ready; }catch(e){}
-  }
+  if(!document.fonts) return;
+  try{
+    await Promise.all([
+      document.fonts.load(`500 32px Oswald`),
+      document.fonts.load(`700 32px Oswald`),
+    ]);
+    await document.fonts.ready;
+  }catch(e){ /* ignore */ }
 }
 
 async function decodeImageSafe(el){
@@ -259,85 +292,91 @@ async function decodeImageSafe(el){
   try{
     if(el.decode) await el.decode();
     else if(!el.complete) await new Promise((res,rej)=>{ el.onload=res; el.onerror=rej; });
-  }catch(e){
-    // Если decode() не поддержан/отклонён, но картинка уже видна — продолжаем.
-  }
+  }catch(e){ /* ignore */ }
 }
 
 async function prepareExportAssets(){
+  const mainImgPromise = st.loaded
+    ? decodeImageSafe(img)
+    : Promise.resolve();
   await Promise.all([
     waitForFonts(),
-    st.loaded ? decodeImageSafe(img) : Promise.resolve(),
+    mainImgPromise,
     loadBottomImages()
   ]);
 }
 
-function canvasCssPx(value, fallback=0){
-  const n = parseFloat(value);
-  return Number.isFinite(n) ? n : fallback;
-}
+function drawBannerExact(ctx, scaleK){
+  const S = EXPORT_SIZE;
+  const mainFontPx    = BANNER.mainFontPx * scaleK;
+  const topPadV       = BANNER.topPadV * scaleK;
+  const topPadH       = BANNER.topPadH * scaleK;
+  const borderTop     = BANNER.borderTop * scaleK;
+  const borderBottom  = BANNER.borderBottom * scaleK;
+  const bottomHeight  = BANNER.bottomHeight * scaleK;
+  const redPadH       = BANNER.redPadH * scaleK;
+  const redGap        = BANNER.redGap * scaleK;
 
-function drawRectFromDom(ctx, el, wr, k, color){
-  const r = el.getBoundingClientRect();
-  ctx.fillStyle = color;
-  ctx.fillRect(
-    (r.left - wr.left) * k,
-    (r.top - wr.top) * k,
-    r.width * k,
-    r.height * k
-  );
-}
+  const textBlockH = Math.round(mainFontPx * BANNER.lineHeight);
+  const topPartH   = topPadV * 2 + textBlockH;
 
-/*
-  Рисуем текст по фактическим DOM-координатам каждого символа.
-  Так экспорт сохраняет переносы строк, letter-spacing и реальное положение текста,
-  а не пытается заново угадать раскладку через canvas.measureText().
-*/
-function drawTextExactly(ctx, el, wr, k){
-  const node = el.firstChild;
-  if(!node || node.nodeType !== Node.TEXT_NODE || !node.nodeValue) return;
+  const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
+  const bannerY = S - bannerH;
 
-  const cs = getComputedStyle(el);
-  const fontSize = canvasCssPx(cs.fontSize, 16) * k;
-  const fontWeight = cs.fontWeight || '500';
-  const fontStyle = cs.fontStyle || 'normal';
-  const fontFamily = cs.fontFamily || 'Oswald, Arial, sans-serif';
+  // 1) верхняя рамка .banner
+  ctx.fillStyle = BANNER.borderTopColor;
+  ctx.fillRect(0, bannerY, S, borderTop);
 
-  ctx.save();
-  ctx.fillStyle = cs.color || '#fff';
-  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
+  // 2) тёмная часть
+  const topPartY = bannerY + borderTop;
+  ctx.fillStyle = BANNER.bgTop;
+  ctx.fillRect(0, topPartY, S, topPartH);
 
-  const txt = node.nodeValue;
-  const range = document.createRange();
-
-  for(let i=0;i<txt.length;i++){
-    const ch = txt[i];
-    range.setStart(node, i);
-    range.setEnd(node, i + 1);
-    const r = range.getBoundingClientRect();
-    if(!r || (!r.width && !r.height)) continue;
-    if(ch === '\n' || ch === '\r') continue;
-
-    const x = (r.left - wr.left) * k;
-    const y = (r.top - wr.top + r.height / 2) * k;
-    ctx.fillText(ch, x, y);
+  // 3) текст
+  const text = (cbIn1.value || '').trim();
+  if(text){
+    ctx.save();
+    ctx.fillStyle = BANNER.textColor;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.font = `${BANNER.fontWeight} ${mainFontPx}px ${BANNER.fontFamily}`;
+    const textY = topPartY + topPadV + textBlockH / 2;
+    ctx.fillText(text, topPadH, textY);
+    ctx.restore();
   }
 
-  range.detach?.();
-  ctx.restore();
+  // 4) нижняя чёрная линия
+  ctx.fillStyle = BANNER.borderBottomColor;
+  ctx.fillRect(0, topPartY + topPartH, S, borderBottom);
+
+  // 5) красная часть
+  const redY = topPartY + topPartH + borderBottom;
+  ctx.fillStyle = BANNER.bgRed;
+  ctx.fillRect(0, redY, S, bottomHeight);
+
+  // 6) логотипы
+  const midY = redY + bottomHeight / 2;
+  const heights = [BANNER.logoFirstH, BANNER.logoSmallH, BANNER.logoSmallH, BANNER.logoSmallH, BANNER.logoLastH]
+    .map(h => h * scaleK);
+
+  let x = redPadH;
+  for(let i=0;i<heights.length;i++){
+    const src = bottomImgs[i];
+    if(!src || !src.naturalWidth || !src.naturalHeight) continue;
+    const h = heights[i];
+    const w = src.naturalWidth * (h / src.naturalHeight);
+    const isLast = (i === heights.length - 1);
+    const drawX = isLast ? (S - redPadH - w) : x;
+    try{
+      ctx.drawImage(src, drawX, midY - h/2, w, h);
+    }catch(e){ console.warn('drawImage error', i, e); }
+    if(!isLast) x += w + redGap;
+  }
 }
 
 async function renderCanvas(){
+  if(!st.loaded) throw new Error('Изображение не загружено');
   await prepareExportAssets();
-
-  // Снимаем размеры только после загрузки шрифта/картинок, чтобы координаты не "прыгали".
-  measure();
-  if(st.loaded){ fit(); draw(); }
-
-  // Даём браузеру применить layout перед чтением getBoundingClientRect().
-  await new Promise(res => requestAnimationFrame(()=>requestAnimationFrame(res)));
 
   const S = EXPORT_SIZE;
   const cv = document.createElement('canvas');
@@ -350,82 +389,44 @@ async function renderCanvas(){
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const wr = wrap.getBoundingClientRect();
-  const k = S / wr.width;
-
-  // Фон.
+  // Фон
   ctx.fillStyle = st.bg;
   ctx.fillRect(0,0,S,S);
 
-  // Основное изображение. Рисуем из исходного файла, а не из экранного растра.
-  if(st.loaded && img.naturalWidth && img.naturalHeight){
-    const w = st.fw * st.scale * k;
-    const h = st.fh * st.scale * k;
-    const cx = st.x / 100 * S;
-    const cy = st.y / 100 * S;
+  // Основное изображение — в DESIGN-координатах
+  const ratio = st.bw / st.bh;
+  let fwD, fhD;
+  if(ratio >= 1){ fwD = DESIGN; fhD = DESIGN / ratio; }
+  else          { fhD = DESIGN; fwD = DESIGN * ratio; }
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0,0,S,S);
-    ctx.clip();
+  const w = fwD * st.scale * K;
+  const h = fhD * st.scale * K;
+  const cx = st.x / 100 * S;
+  const cy = st.y / 100 * S;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0,0,S,S);
+  ctx.clip();
+  try{
     ctx.drawImage(img, cx - w/2, cy - h/2, w, h);
-    ctx.restore();
+  }catch(e){
+    // fallback — если img не готов, дорисуем из Image с CORS
+    const im2 = new Image();
+    im2.crossOrigin = 'anonymous';
+    await new Promise((res,rej)=>{ im2.onload=res; im2.onerror=rej; im2.src = img.src; });
+    if(im2.decode) try{ await im2.decode(); }catch(e){}
+    ctx.drawImage(im2, cx - w/2, cy - h/2, w, h);
   }
+  ctx.restore();
 
-  // Плашка — берём реальные DOM-координаты всех частей.
-  const topEl = bn.querySelector('.top-part');
-  const br = bn.getBoundingClientRect();
-  const topRect = topEl.getBoundingClientRect();
-  const botRect = bottomPart.getBoundingClientRect();
-
-  // Верхняя рамка .banner { border-top: 2px solid #4a5568 }
-  const bnCS = getComputedStyle(bn);
-  const borderTop = canvasCssPx(bnCS.borderTopWidth, 0) * k;
-  if(borderTop > 0){
-    ctx.fillStyle = bnCS.borderTopColor || '#4a5568';
-    ctx.fillRect((br.left-wr.left)*k, (br.top-wr.top)*k, br.width*k, borderTop);
-  }
-
-  // Тёмная часть.
-  drawRectFromDom(ctx, topEl, wr, k, getComputedStyle(topEl).backgroundColor || '#1a1c22');
-
-  // Нижняя чёрная линия top-part (border-bottom).
-  const topCS = getComputedStyle(topEl);
-  const borderBottom = canvasCssPx(topCS.borderBottomWidth, 0) * k;
-  if(borderBottom > 0){
-    ctx.fillStyle = topCS.borderBottomColor || '#000';
-    ctx.fillRect(
-      (topRect.left - wr.left) * k,
-      (topRect.bottom - wr.top) * k - borderBottom,
-      topRect.width * k,
-      borderBottom
-    );
-  }
-
-  // Текст — с настоящими переносами и spacing.
-  drawTextExactly(ctx, $('cbL1'), wr, k);
-
-  // Красная нижняя часть.
-  drawRectFromDom(ctx, bottomPart, wr, k, getComputedStyle(bottomPart).backgroundColor || '#dc143c');
-
-  // Логотипы — в точных DOM-позициях и из оригинальных файлов.
-  const imgs = bottomPart.querySelectorAll('img');
-  imgs.forEach((el, i)=>{
-    const source = bottomImgs[i];
-    if(!source || !source.naturalWidth || !source.naturalHeight) return;
-
-    const r = el.getBoundingClientRect();
-    const ix = (r.left - wr.left) * k;
-    const iy = (r.top - wr.top) * k;
-    const iw = r.width * k;
-    const ih = r.height * k;
-
-    try{ ctx.drawImage(source, ix, iy, iw, ih); }
-    catch(e){ console.warn('drawImage error', i, e); }
-  });
+  // Плашка — по константам
+  drawBannerExact(ctx, K);
 
   return cv;
 }
+
+const EXPORT_K = EXPORT_SIZE / DESIGN;
 
 async function downloadCanvas(){
   if(exportBusy || !st.loaded) return;
@@ -461,6 +462,7 @@ async function downloadCanvas(){
     lucide.createIcons();
   }
 }
+let exportBusy = false;
 
 $('dl').onclick = downloadCanvas;
 
