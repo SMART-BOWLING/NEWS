@@ -60,7 +60,6 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 }
 .combo-inputs input:focus{border-color:var(--bl)}
 
-/* Чекбокс «Улучшить резкость» */
 .sharpen-wrap{
   display:inline-flex;
   align-items:center;
@@ -153,9 +152,6 @@ const cbIn1=$('cbIn1');
 const sharpenToggle=$('sharpenToggle');
 const sharpenWrap=$('sharpenWrap');
 
-/* ============================================================
-   ЭТАЛОННАЯ ГЕОМЕТРИЯ
-   ============================================================ */
 const DESIGN = 1000;
 const EXPORT_SIZE = 2048;
 const FONT_BASE = 16;
@@ -195,6 +191,8 @@ const st = {
   text: '',
   fontPx: 16,
   sharpen: false,
+  sharpenAmount: 0.8,   // сила 0..2
+  sharpenRadius: 1,     // радиус в пикселях экспорта
   sharpenAuto: true
 };
 let currentImg = null;
@@ -246,7 +244,6 @@ async function loadBottomImages(){
   return bottomImgsPromise;
 }
 
-/* ===== Цвет ===== */
 const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
 function setBg(c,sync=true){
   const h=normHex(c)||DEF.bg;
@@ -259,7 +256,6 @@ ci.oninput=e=>setBg(e.target.value);
 hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background=h;ci.value=h;schedulePaint();}};
 hx.onblur=()=>hx.value=st.bg.toUpperCase();
 
-/* ===== ПИПЕТКА ===== */
 const pickBtn = $('pick');
 if('EyeDropper' in window){
   pickBtn.onclick = async () => {
@@ -276,13 +272,10 @@ if('EyeDropper' in window){
 }
 
 /* ============================================================
-   ЧЕКБОКС РЕЗКОСТИ — теперь надёжный
+   ЧЕКБОКС
    ============================================================ */
-
-// 1) Клик по всей плашке гарантированно переключает чекбокс
 sharpenWrap.addEventListener('click', (e)=>{
   if(sharpenWrap.classList.contains('disabled')) return;
-  // Если клик был непосредственно по input — не мешаем дефолтному поведению
   if(e.target === sharpenToggle) return;
   e.preventDefault();
   sharpenToggle.checked = !sharpenToggle.checked;
@@ -293,15 +286,6 @@ sharpenToggle.addEventListener('change', () => {
   st.sharpen = sharpenToggle.checked;
   st.sharpenAuto = false;
   updateSharpenUI();
-  // Дадим пользователю обратную связь
-  if(st.sharpen && st.loaded){
-    const up = Math.min(EXPORT_SIZE / st.bw, EXPORT_SIZE / st.bh);
-    if(up < 1.05){
-      console.info('Улучшение резкости включено. Источник уже ≥ 2048px — эффект будет минимальным, это нормально.');
-    }else{
-      console.info(`Улучшение резкости включено (апскейл ×${up.toFixed(1)}). Эффект применится при сохранении.`);
-    }
-  }
 });
 
 function updateSharpenUI(){
@@ -317,14 +301,11 @@ function updateSharpenUI(){
   else sharpenWrap.classList.remove('active');
 
   const up = Math.min(EXPORT_SIZE / st.bw, EXPORT_SIZE / st.bh);
-  if(up > 1.05){
-    sharpenWrap.title = `Unsharp Mask (апскейл ×${up.toFixed(1)}) — применяется только при сохранении`;
-  }else{
-    sharpenWrap.title = 'Unsharp Mask — источник уже большого размера, эффект слабый';
-  }
+  sharpenWrap.title = up > 1.05
+    ? `Unsharp Mask (апскейл ×${up.toFixed(1)}) — применяется только при сохранении`
+    : 'Unsharp Mask — источник уже большого размера, эффект слабый';
 }
 
-/* При загрузке новой картинки — авто-решение */
 function autoSharpenDecision(){
   st.sharpenAuto = true;
   st.sharpen = Math.min(st.bw, st.bh) < EXPORT_SIZE;
@@ -332,47 +313,118 @@ function autoSharpenDecision(){
 }
 
 /* ============================================================
-   UNSHARP MASK (кроссбраузерно)
+   ★ НАСТОЯЩИЙ UNSHARP MASK через getImageData / putImageData
+   Размытие — быстрый box blur (2 прохода = гаусс примерно),
+   затем result = original + amount * (original - blurred).
+   Работает с любым изображением, не зависит от CSS-фильтров.
    ============================================================ */
-function unsharpMask(targetCtx, srcImg, dx, dy, dw, dh, amount, radiusPx){
-  if(!srcImg || !srcImg.naturalWidth) return;
-  const W = Math.max(1, Math.round(dw));
-  const H = Math.max(1, Math.round(dh));
+function boxBlur(data, w, h, radius){
+  // горизонтальный проход
+  const tmp = new Uint8ClampedArray(data.length);
+  const r = radius | 0;
+  for(let y=0;y<h;y++){
+    const rowOff = y * w * 4;
+    let sumR=0,sumG=0,sumB=0,sumA=0;
+    let count = 0;
+    // начальное окно
+    for(let x=-r;x<=r;x++){
+      const xi = Math.min(w-1, Math.max(0, x));
+      const i = rowOff + xi*4;
+      sumR += data[i]; sumG += data[i+1]; sumB += data[i+2]; sumA += data[i+3];
+      count++;
+    }
+    for(let x=0;x<w;x++){
+      const i = rowOff + x*4;
+      tmp[i]   = sumR / count;
+      tmp[i+1] = sumG / count;
+      tmp[i+2] = sumB / count;
+      tmp[i+3] = sumA / count;
+      // сдвигаем окно
+      const xOut = x - r;
+      const xIn  = x + r + 1;
+      const xiOut = Math.min(w-1, Math.max(0, xOut));
+      const xiIn  = Math.min(w-1, Math.max(0, xIn));
+      const iOut = rowOff + xiOut*4;
+      const iIn  = rowOff + xiIn*4;
+      sumR += data[iIn]   - data[iOut];
+      sumG += data[iIn+1] - data[iOut+1];
+      sumB += data[iIn+2] - data[iOut+2];
+      sumA += data[iIn+3] - data[iOut+3];
+    }
+  }
+  // вертикальный проход
+  for(let x=0;x<w;x++){
+    let sumR=0,sumG=0,sumB=0,sumA=0;
+    let count = 0;
+    for(let y=-r;y<=r;y++){
+      const yi = Math.min(h-1, Math.max(0, y));
+      const i = (yi*w + x)*4;
+      sumR += tmp[i]; sumG += tmp[i+1]; sumB += tmp[i+2]; sumA += tmp[i+3];
+      count++;
+    }
+    for(let y=0;y<h;y++){
+      const i = (y*w + x)*4;
+      data[i]   = sumR / count;
+      data[i+1] = sumG / count;
+      data[i+2] = sumB / count;
+      data[i+3] = sumA / count;
+      const yOut = y - r;
+      const yIn  = y + r + 1;
+      const yiOut = Math.min(h-1, Math.max(0, yOut));
+      const yiIn  = Math.min(h-1, Math.max(0, yIn));
+      const iOut = (yiOut*w + x)*4;
+      const iIn  = (yiIn*w + x)*4;
+      sumR += tmp[iIn]   - tmp[iOut];
+      sumG += tmp[iIn+1] - tmp[iOut+1];
+      sumB += tmp[iIn+2] - tmp[iOut+2];
+      sumA += tmp[iIn+3] - tmp[iOut+3];
+    }
+  }
+}
 
-  // 1) Размытая версия
+/**
+ * Применяет unsharp mask к картинке и возвращает canvas с результатом.
+ * amount: 0..2 — сила (1 = стандарт)
+ * radius: 1..5 — радиус размытия в пикселях
+ */
+function applyUnsharpMask(srcImg, targetW, targetH, amount, radius){
+  const W = Math.max(1, Math.round(targetW));
+  const H = Math.max(1, Math.round(targetH));
+
+  // 1) Рисуем картинку в offscreen
+  const src = document.createElement('canvas');
+  src.width = W; src.height = H;
+  const sctx = src.getContext('2d', {willReadFrequently:true});
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = 'high';
+  sctx.drawImage(srcImg, 0, 0, W, H);
+
+  // 2) Копия для размытия
   const blurred = document.createElement('canvas');
   blurred.width = W; blurred.height = H;
-  const bctx = blurred.getContext('2d');
-  if('filter' in bctx){
-    try{
-      bctx.filter = `blur(${radiusPx}px)`;
-      bctx.drawImage(srcImg, 0, 0, W, H);
-      bctx.filter = 'none';
-    }catch(e){
-      bctx.drawImage(srcImg, 0, 0, W, H);
-    }
-  }else{
-    bctx.drawImage(srcImg, 0, 0, W, H);
+  const bctx = blurred.getContext('2d', {willReadFrequently:true});
+  bctx.drawImage(src, 0, 0);
+
+  const origData = sctx.getImageData(0, 0, W, H);
+  const blurData = bctx.getImageData(0, 0, W, H);
+
+  // 3) Размываем 2 прохода (быстрое приближение к гауссу)
+  boxBlur(blurData.data, W, H, radius);
+  boxBlur(blurData.data, W, H, radius);
+
+  // 4) result = orig + amount * (orig - blur)
+  const out = origData.data;
+  const bl  = blurData.data;
+  for(let i=0; i<out.length; i+=4){
+    out[i]   = out[i]   + amount * (out[i]   - bl[i]);
+    out[i+1] = out[i+1] + amount * (out[i+1] - bl[i+1]);
+    out[i+2] = out[i+2] + amount * (out[i+2] - bl[i+2]);
+    // альфу не трогаем
   }
 
-  // 2) Разница
-  const diff = document.createElement('canvas');
-  diff.width = W; diff.height = H;
-  const dctx = diff.getContext('2d');
-  dctx.drawImage(srcImg, 0, 0, W, H);
-  dctx.globalCompositeOperation = 'difference';
-  dctx.drawImage(blurred, 0, 0);
-  dctx.globalCompositeOperation = 'source-over';
-
-  // 3) Оригинал
-  targetCtx.drawImage(srcImg, dx, dy, dw, dh);
-
-  // 4) Усиление краёв
-  targetCtx.save();
-  targetCtx.globalCompositeOperation = 'lighter';
-  targetCtx.globalAlpha = Math.max(0, Math.min(1, amount));
-  targetCtx.drawImage(diff, dx, dy, dw, dh);
-  targetCtx.restore();
+  // 5) Кладём обратно
+  sctx.putImageData(origData, 0, 0);
+  return src;
 }
 
 /* ============================================================
@@ -447,12 +499,14 @@ async function paint(canvas, S, useSharpen = false){
 
     try{
       if(useSharpen && st.sharpen){
+        // сила и радиус адаптивно от апскейла
         const upX = w / st.bw;
         const upY = h / st.bh;
         const up = Math.max(1, (upX + upY) / 2);
-        const amount = Math.min(0.9, 0.25 + (up - 1) * 0.3);
-        const radius = Math.max(0.5, Math.min(3, w * 0.0015));
-        unsharpMask(c, currentImg, dx, dy, w, h, amount, radius);
+        const amount = Math.min(2.0, st.sharpenAmount * Math.max(1, up * 0.8));
+        const radius = Math.max(1, Math.round(st.sharpenRadius * Math.min(3, up)));
+        const sharpened = applyUnsharpMask(currentImg, w, h, amount, radius);
+        c.drawImage(sharpened, dx, dy, w, h);
       }else{
         c.drawImage(currentImg, dx, dy, w, h);
       }
@@ -631,10 +685,6 @@ function loadFile(f){
       wrap.classList.remove('empty');
       $('dl').disabled = false;
       autoSharpenDecision();
-
-      if(Math.min(st.bw, st.bh) < 1024){
-        console.warn(`Изображение ${st.bw}×${st.bh} меньше 1024px. Рекомендуется источник ≥ 2048px.`);
-      }
       schedulePaint();
     };
     im.src = e.target.result;
@@ -769,7 +819,6 @@ async function shareProject(){
 }
 $('sh').onclick = shareProject;
 
-/* Восстановление из ссылки */
 (async function restoreFromURL(){
   const params = new URLSearchParams(location.search);
   const raw = params.get('state');
@@ -810,7 +859,6 @@ $('sh').onclick = shareProject;
   }catch(err){ console.warn('Не удалось восстановить состояние', err); }
 })();
 
-/* Сброс */
 $('rs').onclick = () => {
   st.loaded = false;
   st.x = 50; st.y = 50; st.scale = 1;
@@ -827,7 +875,6 @@ $('rs').onclick = () => {
   setBg(DEF.bg, true);
 };
 
-/* Инициализация */
 updateSharpenUI();
 setFont(DEF.font);
 setBg(DEF.bg, true);
