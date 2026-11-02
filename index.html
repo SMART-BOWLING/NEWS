@@ -36,7 +36,7 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 .sw{width:28px;height:28px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;flex:0 0 auto;background:#111214}
 .hex{flex:1;min-width:0;background:none;border:none;color:var(--tx);font:12px ui-monospace,monospace;outline:none;padding:4px 2px;text-transform:uppercase}
 #ci{position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0}
-.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:36px;border:none;border-radius:var(--r);font:600 12px inherit;color:#fff;cursor:pointer;white-space:nowrap}
 .btn i{width:14px;height:14px}
 .u{background:var(--bl)}.u:hover{background:#1e74e0}
@@ -59,6 +59,26 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
   transition:border-color .15s;
 }
 .combo-inputs input:focus{border-color:var(--bl)}
+
+/* Чекбокс «Улучшить резкость» */
+.sharpen-wrap{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  height:36px;
+  padding:0 12px;
+  background:var(--s);
+  border:1px solid var(--bd);
+  border-radius:var(--r);
+  font-size:12px;
+  color:var(--tx);
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+}
+.sharpen-wrap input{accent-color:var(--bl);cursor:pointer;width:16px;height:16px}
+.sharpen-wrap.disabled{opacity:.5;pointer-events:none}
+
 @media(max-width:760px){.stage{padding:12px}.wrap{width:min(70vh,100%)}.panel{padding:8px 8px 16px;gap:6px}.ctl{flex:1 1 100%;min-width:0}.btn{flex:1 1 auto;justify-content:center}}
 </style>
 </head>
@@ -103,6 +123,13 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
   <div class="acts">
     <input type="file" id="fi" accept="image/*">
     <label for="fi" class="btn u"><i data-lucide="upload"></i>Загрузить фон</label>
+
+    <label class="sharpen-wrap" id="sharpenWrap" title="Unsharp Mask — применяется только при сохранении">
+      <input type="checkbox" id="sharpenToggle">
+      <i data-lucide="sparkles" style="width:14px;height:14px"></i>
+      Улучшить резкость
+    </label>
+
     <button id="sh" class="btn sh"><i data-lucide="share-2"></i>Поделиться</button>
     <button id="dl" class="btn d" disabled><i data-lucide="download"></i>Скачать</button>
     <button id="rs" class="btn r"><i data-lucide="rotate-ccw"></i>Сбросить</button>
@@ -116,6 +143,8 @@ const wrap=$('wrap'), cvEl=$('cv');
 const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
 const ci=$('ci'),hx=$('hx'),sw=$('sw');
 const cbIn1=$('cbIn1');
+const sharpenToggle=$('sharpenToggle');
+const sharpenWrap=$('sharpenWrap');
 
 /* ============================================================
    ЭТАЛОННАЯ ГЕОМЕТРИЯ — всё в DESIGN-координатах (1000×1000)
@@ -158,6 +187,8 @@ const st = {
   bg: '#111214',
   text: '',
   fontPx: 16,
+  sharpen: false,   // ручной режим
+  sharpenAuto: true // авто-предложение
 };
 let currentImg = null;
 
@@ -228,16 +259,87 @@ if('EyeDropper' in window){
     try{
       const eyeDropper = new EyeDropper();
       const result = await eyeDropper.open();
-      // result.sRGBHex — "#rrggbb"
       setBg(result.sRGBHex, true);
     }catch(err){
-      // Пользователь отменил — ничего не делаем.
       if(err && err.name !== 'AbortError') console.warn(err);
     }
   };
 }else{
-  // В Firefox/Safari API нет — прячем кнопку
   pickBtn.style.display = 'none';
+}
+
+/* ===== ЧЕКБОКС РЕЗКОСТИ ===== */
+function setSharpenUI(){
+  if(!st.loaded){
+    sharpenToggle.checked = false;
+    sharpenWrap.classList.add('disabled');
+    return;
+  }
+  sharpenWrap.classList.remove('disabled');
+  // Авто-решение: включаем, если картинка апскейлится (источник < EXPORT_SIZE)
+  const needSharpen = Math.min(st.bw, st.bh) < EXPORT_SIZE;
+  if(st.sharpenAuto && needSharpen){
+    st.sharpen = true;
+    sharpenToggle.checked = true;
+  }else{
+    sharpenToggle.checked = st.sharpen;
+  }
+  // Меняем подпись, если апскейл большой
+  const upFactor = Math.min(EXPORT_SIZE / st.bw, EXPORT_SIZE / st.bh);
+  sharpenWrap.title = upFactor > 1.5
+    ? `Источник ${st.bw}×${st.bh} — сильный апскейл (×${upFactor.toFixed(1)}). Unsharp Mask сгладит артефакты.`
+    : `Применить Unsharp Mask при сохранении`;
+}
+sharpenToggle.onchange = () => {
+  st.sharpen = sharpenToggle.checked;
+  st.sharpenAuto = false; // пользователь выбрал вручную
+};
+
+/* ============================================================
+   UNSHARP MASK (кроссбраузерно, без ctx.filter url())
+   result = original + amount * (original - blurred)
+   ============================================================ */
+function unsharpMask(targetCtx, srcImg, dx, dy, dw, dh, amount, radiusPx){
+  if(!srcImg || !srcImg.naturalWidth) return;
+  const W = Math.max(1, Math.round(dw));
+  const H = Math.max(1, Math.round(dh));
+
+  // 1) Размытая версия
+  const blurred = document.createElement('canvas');
+  blurred.width = W; blurred.height = H;
+  const bctx = blurred.getContext('2d');
+  // ctx.filter поддерживается во всех современных браузерах кроме старых Safari
+  if('filter' in bctx){
+    try{
+      bctx.filter = `blur(${radiusPx}px)`;
+      bctx.drawImage(srcImg, 0, 0, W, H);
+      bctx.filter = 'none';
+    }catch(e){
+      bctx.drawImage(srcImg, 0, 0, W, H);
+    }
+  }else{
+    // Fallback: без размытия — просто original, эффект будет слабее
+    bctx.drawImage(srcImg, 0, 0, W, H);
+  }
+
+  // 2) Разница (original - blurred) → берём abs через difference
+  const diff = document.createElement('canvas');
+  diff.width = W; diff.height = H;
+  const dctx = diff.getContext('2d');
+  dctx.drawImage(srcImg, 0, 0, W, H);          // original
+  dctx.globalCompositeOperation = 'difference';
+  dctx.drawImage(blurred, 0, 0);               // |original - blurred|
+  dctx.globalCompositeOperation = 'source-over';
+
+  // 3) Рисуем оригинал в целевом месте
+  targetCtx.drawImage(srcImg, dx, dy, dw, dh);
+
+  // 4) Накладываем разницу с 'lighter' (аддитивно), с силой amount
+  targetCtx.save();
+  targetCtx.globalCompositeOperation = 'lighter';
+  targetCtx.globalAlpha = Math.max(0, Math.min(1, amount));
+  targetCtx.drawImage(diff, dx, dy, dw, dh);
+  targetCtx.restore();
 }
 
 /* ============================================================
@@ -285,8 +387,9 @@ function layoutText(ctx, text, maxWidth){
 
 /* ============================================================
    ГЛАВНАЯ ФУНКЦИЯ РИСОВАНИЯ (превью + экспорт)
+   useSharpen = true только при экспорте
    ============================================================ */
-async function paint(canvas, S){
+async function paint(canvas, S, useSharpen = false){
   const c = canvas.getContext('2d', {alpha:false});
   const k = S / DESIGN;
 
@@ -305,12 +408,33 @@ async function paint(canvas, S){
     const h = fhD * st.scale * k;
     const cx = st.x / 100 * S;
     const cy = st.y / 100 * S;
+    const dx = cx - w/2;
+    const dy = cy - h/2;
+
     c.save();
     c.beginPath();
     c.rect(0, 0, S, S);
     c.clip();
-    try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); }
-    catch(e){ console.warn('drawImage main failed', e); }
+
+    try{
+      if(useSharpen && st.sharpen){
+        // Подбираем силу по степени апскейла
+        const upX = w / st.bw;
+        const upY = h / st.bh;
+        const up = Math.max(1, (upX + upY) / 2);
+        // Чем сильнее апскейл — тем сильнее шарп, но не больше 0.9
+        const amount = Math.min(0.9, 0.25 + (up - 1) * 0.3);
+        // Радиус ~1.2% от размера отрисовки
+        const radius = Math.max(0.5, Math.min(3, w * 0.0015));
+        unsharpMask(c, currentImg, dx, dy, w, h, amount, radius);
+      }else{
+        c.drawImage(currentImg, dx, dy, w, h);
+      }
+    }catch(e){
+      // Fallback
+      try{ c.drawImage(currentImg, dx, dy, w, h); }catch(err){}
+      console.warn('drawImage main failed', e);
+    }
     c.restore();
   }
 
@@ -411,7 +535,7 @@ async function renderPreview(){
       cvEl.width = px;
       cvEl.height = px;
     }
-    await paint(cvEl, px);
+    await paint(cvEl, px, false); // ← без шарпа в превью
   } finally {
     previewRendering = false;
   }
@@ -482,6 +606,16 @@ function loadFile(f){
       sc.value = 100; scV.textContent = '100.0%';
       wrap.classList.remove('empty');
       $('dl').disabled = false;
+
+      // Авто-включение шарпа при апскейле
+      st.sharpenAuto = true;
+      st.sharpen = Math.min(st.bw, st.bh) < EXPORT_SIZE;
+      setSharpenUI();
+
+      if(Math.min(st.bw, st.bh) < 1024){
+        console.warn(`Изображение ${st.bw}×${st.bh} меньше 1024px по одной из сторон. Рекомендуется источник ≥ 2048px для идеальной резкости.`);
+      }
+
       schedulePaint();
     };
     im.src = e.target.result;
@@ -530,143 +664,4 @@ wrap.addEventListener('wheel', e=>{
   setScale(st.scale * (1 - e.deltaY * .0015));
 },{passive:false});
 
-addEventListener('resize', () => { renderPreview(); });
-
-/* ============================================================
-   ЭКСПОРТ
-   ============================================================ */
-let exportBusy = false;
-
-async function renderExportCanvas(){
-  await ensureReady();
-  const cv = document.createElement('canvas');
-  cv.width = EXPORT_SIZE;
-  cv.height = EXPORT_SIZE;
-  await paint(cv, EXPORT_SIZE);
-  return cv;
-}
-
-async function downloadCanvas(){
-  if(exportBusy || !st.loaded) return;
-  exportBusy = true;
-  const btn = $('dl');
-  const oldHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<i data-lucide="loader-circle"></i>Сохранение…';
-  lucide.createIcons();
-  try{
-    const cv = await renderExportCanvas();
-    const blob = await new Promise((resolve,reject)=>{
-      cv.toBlob(b => b ? resolve(b) : reject(new Error('PNG не создан')), 'image/png', 1);
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'canvas.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 3000);
-  }catch(err){
-    console.error('Ошибка сохранения:', err);
-    alert('Не удалось сохранить картинку. Откройте консоль браузера — там будет причина.');
-  }finally{
-    exportBusy = false;
-    btn.disabled = !st.loaded;
-    btn.innerHTML = oldHTML;
-    lucide.createIcons();
-  }
-}
-$('dl').onclick = downloadCanvas;
-
-async function shareProject(){
-  try{
-    const payload = {
-      x: st.x, y: st.y, scale: st.scale,
-      bg: st.bg,
-      text: st.text,
-      font: st.fontPx,
-      img: st.loaded && currentImg ? currentImg.src : null
-    };
-    const cv = await renderExportCanvas();
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    const file = new File([blob], 'canvas.png', {type:'image/png'});
-
-    if (navigator.canShare && navigator.canShare({files:[file]})) {
-      await navigator.share({ files:[file], title:'Холст', text:'Моя картинка' });
-      return;
-    }
-    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
-    const url = location.origin + location.pathname + '?state=' + encoded;
-
-    if (navigator.share) {
-      await navigator.share({ title:'Холст', text:'Открой мою картинку', url });
-    } else {
-      await navigator.clipboard.writeText(url);
-      const btn = $('sh');
-      const old = btn.innerHTML;
-      btn.innerHTML = '<i data-lucide="check"></i>Скопировано';
-      lucide.createIcons();
-      setTimeout(()=>{ btn.innerHTML = old; lucide.createIcons(); }, 1800);
-    }
-  }catch(e){
-    if(e.name !== 'AbortError') console.error(e);
-  }
-}
-$('sh').onclick = shareProject;
-
-/* Восстановление из ссылки */
-(async function restoreFromURL(){
-  const params = new URLSearchParams(location.search);
-  const raw = params.get('state');
-  if(!raw) return;
-  try{
-    const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
-    if(p.bg) setBg(p.bg, true);
-    if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
-    if(p.font) setFont(p.font);
-
-    if(p.img){
-      await new Promise((res)=>{
-        const im = new Image();
-        im.onload = async ()=>{
-          try{ await im.decode?.(); }catch(e){}
-          currentImg = im;
-          st.bw = im.naturalWidth; st.bh = im.naturalHeight;
-          st.loaded = true;
-          wrap.classList.remove('empty');
-          $('dl').disabled = false;
-          st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
-          sc.value = (st.scale * 100).toFixed(1);
-          scV.textContent = (st.scale * 100).toFixed(1) + '%';
-          schedulePaint();
-          res();
-        };
-        im.onerror = res;
-        im.src = p.img;
-      });
-    }
-  }catch(err){ console.warn('Не удалось восстановить состояние', err); }
-})();
-
-/* Сброс */
-$('rs').onclick = () => {
-  st.loaded = false;
-  st.x = 50; st.y = 50; st.scale = 1;
-  currentImg = null;
-  wrap.classList.add('empty');
-  $('fi').value = '';
-  $('dl').disabled = true;
-  sc.value = 100; scV.textContent = '100.0%';
-  cbIn1.value = ''; st.text = '';
-  setFont(DEF.font);
-  setBg(DEF.bg, true);
-};
-
-/* Инициализация */
-setFont(DEF.font);
-setBg(DEF.bg, true);
-ensureReady().then(() => renderPreview());
-</script>
-</body>
-</html>
+addEventListener('resize', () => { render
