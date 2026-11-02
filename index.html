@@ -12,7 +12,7 @@
 html,body{margin:0;height:100%;font:14px -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
 body{display:flex;flex-direction:column;height:100vh}
 .stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:24px;background:#1a1b1e}
-.wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none;container-type:size}
+.wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none}
 .wrap.drag{cursor:grabbing}
 .wrap.empty{cursor:pointer;border:2px dashed var(--bd)}
 .wrap.empty::before{content:"";position:absolute;inset:0;z-index:0;background:repeating-linear-gradient(45deg,#1c1d20,#1c1d20 12px,#202226 12px,#202226 24px)}
@@ -20,34 +20,9 @@ body{display:flex;flex-direction:column;height:100vh}
 .hint{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mu);font-size:13px;text-align:center;pointer-events:none}
 .hint i{width:34px;height:34px}
 .wrap:not(.empty) .hint{display:none}
-#img{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;display:none;z-index:1}
-#img.on{display:block}
 
-/* ===== ПЛАШКА ===== */
-.banner{position:absolute;left:0;bottom:0;right:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;font-family:'Oswald',Arial,sans-serif;background:#1a1c22;color:#fff;border-top:2px solid #4a5568;font-size:var(--bf)}
-.banner .top-part{background:#1a1c22;padding:1em 1.2em;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;position:relative}
-.banner .text-wrap{flex:1;text-align:left;padding-right:1em;line-height:1.2;text-transform:none}
-.banner .main-txt{font-family:'Oswald',Arial,sans-serif;font-weight:500;font-size:1.8em;letter-spacing:.02em;color:#fff}
-
-.banner .bottom-part{
-  height:36px;
-  flex:0 0 auto;
-  background:#dc143c;
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
-  gap:10px;
-  padding:0 20px;
-}
-.banner .bottom-part img{
-  height:16px;
-  width:auto;
-  max-width:100px;
-  object-fit:contain;
-  display:block;
-}
-.banner .bottom-part img:first-child{ height:22px; }
-.banner .bottom-part img:last-child{ margin-left:auto; height:22px; }
+/* Один-единственный canvas внутри wrap — и превью, и «сцена» */
+#cv{display:block;width:100%;height:100%;position:absolute;inset:0;z-index:1;pointer-events:none}
 
 /* ===== ПАНЕЛЬ ===== */
 .panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
@@ -81,23 +56,7 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 <body>
 <div class="stage">
   <div class="wrap empty" id="wrap">
-    <img id="img" alt="">
-    
-    <div class="banner" id="bn">
-      <div class="top-part">
-        <div class="text-wrap">
-          <div class="main-txt" id="cbL1"></div>
-        </div>
-      </div>
-      <div class="bottom-part" id="bottomPart">
-        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png" alt="logo">
-        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png" alt="instagram">
-        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631164/gmxzyocecemgtxjrmmvu.png" alt="telegram">
-        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631073/nhcxkk1zwvz0kvbpsure.png" alt="link">
-        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png" alt="right">
-      </div>
-    </div>
-
+    <canvas id="cv"></canvas>
     <div class="hint"><i data-lucide="image-plus"></i><span>Нажмите или перетащите картинку</span></div>
   </div>
 </div>
@@ -141,35 +100,35 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 <script>
 lucide.createIcons();
 const $=id=>document.getElementById(id);
-const wrap=$('wrap'),img=$('img'),bn=$('bn'),bottomPart=$('bottomPart');
+const wrap=$('wrap'), cvEl=$('cv');
+const ctx = cvEl.getContext('2d');
 const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
 const ci=$('ci'),hx=$('hx'),sw=$('sw');
 const cbIn1=$('cbIn1');
 
-const DEF={font:16,bg:'#111214'};
-const st={loaded:false,x:50,y:50,scale:1,bw:0,bh:0,fw:0,fh:0,bg:'#111214'};
-let CS=0;
-
 /* ============================================================
-   ЭТАЛОННАЯ ГЕОМЕТРИЯ ЭКСПОРТА
-   Всё считается в DESIGN-единицах и НЕ зависит от размера окна.
+   ЭТАЛОННАЯ ГЕОМЕТРИЯ
+   Всё рисуется в DESIGN-координатах (1000×1000).
+   Превью = тот же canvas, CSS-растянутый.
+   Экспорт = тот же canvas, но 2048×2048 пикселей.
    ============================================================ */
-const DESIGN = 1000;         // эталонная логическая ширина/высота холста
-const EXPORT_SIZE = 2048;    // итоговый PNG
-const K = EXPORT_SIZE / DESIGN; // константный коэффициент
+const DESIGN = 1000;
+const EXPORT_SIZE = 2048;
+
+const FONT_BASE = 16;  // px, база для расчёта плашки
 
 const BANNER = {
   borderTop: 2,
-  topPadV: 16,          // 1em при базовом 16
-  topPadH: 19.2,        // 1.2em при базовом 16
-  mainFontPx: 28.8,     // 1.8em при базовом 16
+  topPadV: 16,
+  topPadH: 19.2,
+  mainFontPx: 28.8,
   lineHeight: 1.2,
   borderBottom: 2,
   bottomHeight: 36,
   redPadH: 20,
   redGap: 10,
-  logoSmallH: 16,
   logoFirstH: 22,
+  logoSmallH: 16,
   logoLastH: 22,
   bgTop: '#1a1c22',
   borderTopColor: '#4a5568',
@@ -180,7 +139,18 @@ const BANNER = {
   fontWeight: 500,
 };
 
-/* ===== Загрузка логотипов нижней панели ===== */
+const DEF = { font: 16, bg: '#111214' };
+const st = {
+  loaded: false,
+  x: 50, y: 50, scale: 1,
+  bw: 0, bh: 0,
+  bg: '#111214',
+  text: '',
+  fontPx: 16,
+};
+let currentImg = null;
+
+/* ===== Логотипы ===== */
 const BOTTOM_IMGS = [
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png",
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png",
@@ -208,14 +178,14 @@ async function loadBottomImages(){
         });
         const im = new Image();
         await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = dataUrl; });
-        if(im.decode) { try{ await im.decode(); }catch(e){} }
+        try{ await im.decode?.(); }catch(e){}
         bottomImgs[i] = im;
       }catch(e){
         try{
           const im = new Image();
           im.crossOrigin = 'anonymous';
           await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = src; });
-          if(im.decode) { try{ await im.decode(); }catch(e){} }
+          try{ await im.decode?.(); }catch(e){}
           bottomImgs[i] = im;
         }catch(e2){
           console.warn('Не удалось загрузить картинку для экспорта:', src);
@@ -223,227 +193,379 @@ async function loadBottomImages(){
         }
       }
     }
-    return bottomImgs;
   })();
   return bottomImgsPromise;
 }
 
+/* ===== Утилиты цвета ===== */
 const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
-function setBg(c,sync=true){const h=normHex(c)||DEF.bg;st.bg=h;wrap.style.background=h;if(sync){ci.value=h;hx.value=h.toUpperCase();sw.style.background=h;}}
+function setBg(c,sync=true){
+  const h=normHex(c)||DEF.bg;
+  st.bg=h;
+  if(sync){ ci.value=h; hx.value=h.toUpperCase(); sw.style.background=h; }
+  schedulePaint();
+}
 sw.onclick=()=>ci.click();
 ci.oninput=e=>setBg(e.target.value);
-hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;wrap.style.background=h;sw.style.background=h;ci.value=h;}};
+hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background=h;ci.value=h;schedulePaint();}};
 hx.onblur=()=>hx.value=st.bg.toUpperCase();
 
-function updateComboText() { $('cbL1').textContent = cbIn1.value; }
-cbIn1.oninput = updateComboText;
+/* ============================================================
+   РАСЧЁТ РАЗМЕРОВ ПЛАШКИ — зависит от шрифта
+   Возвращает всё в DESIGN-единицах.
+   ============================================================ */
+function bannerMetrics(){
+  // коэффициент масштаба всей плашки относительно базового шрифта 16
+  const f = st.fontPx / FONT_BASE;
 
-function setFont(p){const v=Math.max(6,Math.min(96,parseFloat(p)));bn.style.setProperty('--bf',v+'px');fs.value=v;fsV.textContent=v.toFixed(1)+'px';}
-fs.oninput=e=>setFont(e.target.value);
-fsV.onclick=()=>setFont(DEF.font);
+  const borderTop     = BANNER.borderTop * f;
+  const topPadV       = BANNER.topPadV * f;
+  const topPadH       = BANNER.topPadH * f;
+  const mainFontPx    = BANNER.mainFontPx * f;
+  const lineHeight    = BANNER.lineHeight;
+  const borderBottom  = BANNER.borderBottom * f;
+  const bottomHeight  = BANNER.bottomHeight * f;
+  const redPadH       = BANNER.redPadH * f;
+  const redGap        = BANNER.redGap * f;
+  const logoFirstH    = BANNER.logoFirstH * f;
+  const logoSmallH    = BANNER.logoSmallH * f;
+  const logoLastH     = BANNER.logoLastH * f;
 
-function measure(){CS=wrap.getBoundingClientRect().width;}
-function fit(){if(!st.loaded)return;const r=st.bw/st.bh;if(r>=1){st.fw=CS;st.fh=CS/r;}else{st.fh=CS;st.fw=CS*r;}}
-function draw(){if(!st.loaded)return;const w=st.fw*st.scale,h=st.fh*st.scale;const l=st.x/100*CS-w/2,t=st.y/100*CS-h/2;img.style.width=w+'px';img.style.height=h+'px';img.style.transform=`translate(${l}px,${t}px)`;sc.value=(st.scale*100).toFixed(1);scV.textContent=(st.scale*100).toFixed(1)+'%';}
-function setScale(s){st.scale=Math.min(4,Math.max(.05,s));draw();}
-
-function load(f){if(!f||!f.type.startsWith('image/'))return;const rd=new FileReader();rd.onload=e=>{const im=new Image();im.onload=()=>{st.bw=im.naturalWidth;st.bh=im.naturalHeight;st.loaded=true;st.x=50;st.y=50;st.scale=1;img.src=e.target.result;img.classList.add('on');wrap.classList.remove('empty');measure();fit();draw();$('dl').disabled=false;};im.src=e.target.result;};rd.readAsDataURL(f);}
-$('fi').onchange=e=>load(e.target.files[0]);
-wrap.onclick=()=>{if(!st.loaded)$('fi').click();};
-document.addEventListener('dragover',e=>e.preventDefault());
-document.addEventListener('drop',e=>{e.preventDefault();load(e.dataTransfer.files[0]);});
-
-let drag=null;
-function down(x,y){if(!st.loaded)return;drag={px:x,py:y,x:st.x,y:st.y};wrap.classList.add('drag');}
-function move(x,y){if(!drag)return;st.x=drag.x+(x-drag.px)/CS*100;st.y=drag.y+(y-drag.py)/CS*100;draw();}
-function up(){drag=null;wrap.classList.remove('drag');}
-wrap.addEventListener('mousedown',e=>{if(e.button!==0)return;e.preventDefault();down(e.clientX,e.clientY);});
-addEventListener('mousemove',e=>move(e.clientX,e.clientY));
-addEventListener('mouseup',up);
-let pinch=null;const td=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
-wrap.addEventListener('touchstart',e=>{if(e.touches.length===1)down(e.touches[0].clientX,e.touches[0].clientY);else if(e.touches.length===2)pinch={d:td(e.touches),s:st.scale};},{passive:true});
-wrap.addEventListener('touchmove',e=>{if(e.touches.length===1&&drag){e.preventDefault();move(e.touches[0].clientX,e.touches[0].clientY);}else if(e.touches.length===2&&pinch){e.preventDefault();setScale(pinch.s*td(e.touches)/pinch.d);}},{passive:false});
-wrap.addEventListener('touchend',e=>{if(e.touches.length===0){up();pinch=null;}else if(e.touches.length===1&&pinch){pinch=null;down(e.touches[0].clientX,e.touches[0].clientY);}});
-wrap.addEventListener('wheel',e=>{if(!st.loaded)return;e.preventDefault();setScale(st.scale*(1-e.deltaY*.0015));},{passive:false});
-
-sc.oninput=e=>{st.scale=parseFloat(e.target.value)/100;draw();};
-scV.onclick=()=>{st.scale=1;draw();};
-document.querySelectorAll('.ib').forEach(b=>b.onclick=()=>{const t=b.dataset.t,s=parseFloat(b.dataset.s);if(t==='sc')setScale(st.scale+s/100);else setFont(parseFloat(fs.value)+s);});
-
-addEventListener('resize',()=>{measure();fit();draw();});
+  return {
+    f, borderTop, topPadV, topPadH, mainFontPx, lineHeight, borderBottom,
+    bottomHeight, redPadH, redGap, logoFirstH, logoSmallH, logoLastH,
+  };
+}
 
 /* ============================================================
-   ЭКСПОРТ — детерминированный, не зависит от DOM/DPR/масштаба
+   ПЕРЕНОС ТЕКСТА — детерминированный, независим от DOM
+   Разбиваем на слова и переносим по ширине текстовой области.
    ============================================================ */
-
-async function waitForFonts(){
-  if(!document.fonts) return;
-  try{
-    await Promise.all([
-      document.fonts.load(`500 32px Oswald`),
-      document.fonts.load(`700 32px Oswald`),
-    ]);
-    await document.fonts.ready;
-  }catch(e){ /* ignore */ }
+function layoutText(ctx, text, maxWidth){
+  if(!text) return [];
+  ctx.save();
+  const lines = [];
+  const paragraphs = text.split('\n');
+  for(const para of paragraphs){
+    if(para === ''){
+      lines.push('');
+      continue;
+    }
+    const words = para.split(/\s+/);
+    let line = '';
+    for(const word of words){
+      const test = line ? (line + ' ' + word) : word;
+      const w = ctx.measureText(test).width;
+      if(w <= maxWidth || !line){
+        line = test;
+      }else{
+        lines.push(line);
+        line = word;
+      }
+    }
+    if(line) lines.push(line);
+  }
+  ctx.restore();
+  return lines;
 }
 
-async function decodeImageSafe(el){
-  if(!el || !el.src) return;
-  try{
-    if(el.decode) await el.decode();
-    else if(!el.complete) await new Promise((res,rej)=>{ el.onload=res; el.onerror=rej; });
-  }catch(e){ /* ignore */ }
-}
+/* ============================================================
+   ГЛАВНАЯ ФУНКЦИЯ РИСОВАНИЯ
+   Рисует всё в холст размером S×S (в пикселях этого холста).
+   Используется И для превью, И для экспорта — гарантия
+   «что вижу, то и сохраняю».
+   ============================================================ */
+async function paint(canvas, S){
+  const c = canvas.getContext('2d', {alpha:false});
+  const k = S / DESIGN; // масштаб DESIGN → пиксели холста
 
-async function prepareExportAssets(){
-  const mainImgPromise = st.loaded
-    ? decodeImageSafe(img)
-    : Promise.resolve();
-  await Promise.all([
-    waitForFonts(),
-    mainImgPromise,
-    loadBottomImages()
-  ]);
-}
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
 
-function drawBannerExact(ctx, scaleK){
-  const S = EXPORT_SIZE;
-  const mainFontPx    = BANNER.mainFontPx * scaleK;
-  const topPadV       = BANNER.topPadV * scaleK;
-  const topPadH       = BANNER.topPadH * scaleK;
-  const borderTop     = BANNER.borderTop * scaleK;
-  const borderBottom  = BANNER.borderBottom * scaleK;
-  const bottomHeight  = BANNER.bottomHeight * scaleK;
-  const redPadH       = BANNER.redPadH * scaleK;
-  const redGap        = BANNER.redGap * scaleK;
+  // 1) Фон
+  c.fillStyle = st.bg;
+  c.fillRect(0, 0, S, S);
 
-  const textBlockH = Math.round(mainFontPx * BANNER.lineHeight);
-  const topPartH   = topPadV * 2 + textBlockH;
+  // 2) Основная картинка
+  if(st.loaded && currentImg && currentImg.naturalWidth){
+    const ratio = st.bw / st.bh;
+    let fwD, fhD;
+    if(ratio >= 1){ fwD = DESIGN; fhD = DESIGN / ratio; }
+    else          { fhD = DESIGN; fwD = DESIGN * ratio; }
+
+    const w = fwD * st.scale * k;
+    const h = fhD * st.scale * k;
+    const cx = st.x / 100 * S;
+    const cy = st.y / 100 * S;
+
+    c.save();
+    c.beginPath();
+    c.rect(0, 0, S, S);
+    c.clip();
+    try{
+      c.drawImage(currentImg, cx - w/2, cy - h/2, w, h);
+    }catch(e){
+      console.warn('drawImage main failed', e);
+    }
+    c.restore();
+  }
+
+  // 3) Плашка
+  const m = bannerMetrics();
+  const borderTop    = m.borderTop    * k;
+  const topPadV      = m.topPadV      * k;
+  const topPadH      = m.topPadH      * k;
+  const mainFontPx   = m.mainFontPx   * k;
+  const borderBottom = m.borderBottom * k;
+  const bottomHeight = m.bottomHeight * k;
+  const redPadH      = m.redPadH      * k;
+  const redGap       = m.redGap       * k;
+  const logoFirstH   = m.logoFirstH   * k;
+  const logoSmallH   = m.logoSmallH   * k;
+  const logoLastH    = m.logoLastH    * k;
+
+  // 3.1) Подготовим текст
+  c.font = `${BANNER.fontWeight} ${mainFontPx}px ${BANNER.fontFamily}`;
+  const maxTextWidth = S - topPadH * 2;
+  const lines = layoutText(c, st.text, maxTextWidth);
+  const lineHeightPx = mainFontPx * m.lineHeight;
+  const textBlockH = Math.max(lineHeightPx, lines.length * lineHeightPx);
+  const topPartH = topPadV * 2 + textBlockH;
 
   const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
   const bannerY = S - bannerH;
 
-  // 1) верхняя рамка .banner
-  ctx.fillStyle = BANNER.borderTopColor;
-  ctx.fillRect(0, bannerY, S, borderTop);
+  // 3.2) Верхняя рамка
+  c.fillStyle = BANNER.borderTopColor;
+  c.fillRect(0, bannerY, S, borderTop);
 
-  // 2) тёмная часть
+  // 3.3) Тёмная часть
   const topPartY = bannerY + borderTop;
-  ctx.fillStyle = BANNER.bgTop;
-  ctx.fillRect(0, topPartY, S, topPartH);
+  c.fillStyle = BANNER.bgTop;
+  c.fillRect(0, topPartY, S, topPartH);
 
-  // 3) текст
-  const text = (cbIn1.value || '').trim();
-  if(text){
-    ctx.save();
-    ctx.fillStyle = BANNER.textColor;
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    ctx.font = `${BANNER.fontWeight} ${mainFontPx}px ${BANNER.fontFamily}`;
-    const textY = topPartY + topPadV + textBlockH / 2;
-    ctx.fillText(text, topPadH, textY);
-    ctx.restore();
+  // 3.4) Текст
+  if(lines.length){
+    c.save();
+    c.fillStyle = BANNER.textColor;
+    c.textBaseline = 'middle';
+    c.textAlign = 'left';
+    c.font = `${BANNER.fontWeight} ${mainFontPx}px ${BANNER.fontFamily}`;
+    // Центрируем текстовый блок по вертикали в topPartH
+    const firstLineCenterY = topPartY + topPadV + lineHeightPx / 2;
+    for(let i=0;i<lines.length;i++){
+      const y = firstLineCenterY + i * lineHeightPx;
+      c.fillText(lines[i], topPadH, y);
+    }
+    c.restore();
   }
 
-  // 4) нижняя чёрная линия
-  ctx.fillStyle = BANNER.borderBottomColor;
-  ctx.fillRect(0, topPartY + topPartH, S, borderBottom);
+  // 3.5) Чёрная линия
+  c.fillStyle = BANNER.borderBottomColor;
+  c.fillRect(0, topPartY + topPartH, S, borderBottom);
 
-  // 5) красная часть
+  // 3.6) Красная часть
   const redY = topPartY + topPartH + borderBottom;
-  ctx.fillStyle = BANNER.bgRed;
-  ctx.fillRect(0, redY, S, bottomHeight);
+  c.fillStyle = BANNER.bgRed;
+  c.fillRect(0, redY, S, bottomHeight);
 
-  // 6) логотипы
+  // 3.7) Логотипы
   const midY = redY + bottomHeight / 2;
-  const heights = [BANNER.logoFirstH, BANNER.logoSmallH, BANNER.logoSmallH, BANNER.logoSmallH, BANNER.logoLastH]
-    .map(h => h * scaleK);
+  const heights = [logoFirstH, logoSmallH, logoSmallH, logoSmallH, logoLastH];
 
-  let x = redPadH;
+  let xPos = redPadH;
   for(let i=0;i<heights.length;i++){
     const src = bottomImgs[i];
     if(!src || !src.naturalWidth || !src.naturalHeight) continue;
     const h = heights[i];
     const w = src.naturalWidth * (h / src.naturalHeight);
     const isLast = (i === heights.length - 1);
-    const drawX = isLast ? (S - redPadH - w) : x;
+    const drawX = isLast ? (S - redPadH - w) : xPos;
     try{
-      ctx.drawImage(src, drawX, midY - h/2, w, h);
-    }catch(e){ console.warn('drawImage error', i, e); }
-    if(!isLast) x += w + redGap;
+      c.drawImage(src, drawX, midY - h/2, w, h);
+    }catch(e){ console.warn('drawImage logo failed', i, e); }
+    if(!isLast) xPos += w + redGap;
   }
 }
 
-async function renderCanvas(){
-  if(!st.loaded) throw new Error('Изображение не загружено');
-  await prepareExportAssets();
+/* ============================================================
+   ПРЕВЬЮ
+   ============================================================ */
+let paintScheduled = false;
+function schedulePaint(){
+  if(paintScheduled) return;
+  paintScheduled = true;
+  requestAnimationFrame(async ()=>{
+    paintScheduled = false;
+    await renderPreview();
+  });
+}
 
-  const S = EXPORT_SIZE;
-  const cv = document.createElement('canvas');
-  cv.width = S;
-  cv.height = S;
-
-  const ctx = cv.getContext('2d', {alpha:false});
-  if(!ctx) throw new Error('Не удалось создать canvas для экспорта');
-
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-
-  // Фон
-  ctx.fillStyle = st.bg;
-  ctx.fillRect(0,0,S,S);
-
-  // Основное изображение — в DESIGN-координатах
-  const ratio = st.bw / st.bh;
-  let fwD, fhD;
-  if(ratio >= 1){ fwD = DESIGN; fhD = DESIGN / ratio; }
-  else          { fhD = DESIGN; fwD = DESIGN * ratio; }
-
-  const w = fwD * st.scale * K;
-  const h = fhD * st.scale * K;
-  const cx = st.x / 100 * S;
-  const cy = st.y / 100 * S;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0,0,S,S);
-  ctx.clip();
+let previewRendering = false;
+async function renderPreview(){
+  if(previewRendering) return;
+  previewRendering = true;
   try{
-    ctx.drawImage(img, cx - w/2, cy - h/2, w, h);
-  }catch(e){
-    // fallback — если img не готов, дорисуем из Image с CORS
-    const im2 = new Image();
-    im2.crossOrigin = 'anonymous';
-    await new Promise((res,rej)=>{ im2.onload=res; im2.onerror=rej; im2.src = img.src; });
-    if(im2.decode) try{ await im2.decode(); }catch(e){}
-    ctx.drawImage(im2, cx - w/2, cy - h/2, w, h);
+    await ensureReady();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const rect = wrap.getBoundingClientRect();
+    const cssSize = Math.max(1, Math.round(rect.width));
+    const px = Math.round(cssSize * dpr);
+
+    if(cvEl.width !== px || cvEl.height !== px){
+      cvEl.width = px;
+      cvEl.height = px;
+    }
+    await paint(cvEl, px);
+  } finally {
+    previewRendering = false;
   }
-  ctx.restore();
+}
 
-  // Плашка — по константам
-  drawBannerExact(ctx, K);
+let readyPromise = null;
+function ensureReady(){
+  if(readyPromise) return readyPromise;
+  readyPromise = (async ()=>{
+    try{
+      if(document.fonts){
+        await Promise.all([
+          document.fonts.load(`500 32px Oswald`),
+          document.fonts.load(`700 32px Oswald`),
+        ]);
+        await document.fonts.ready;
+      }
+    }catch(e){}
+    try{ await loadBottomImages(); }catch(e){}
+  })();
+  return readyPromise;
+}
 
+/* ============================================================
+   ВЗАИМОДЕЙСТВИЕ
+   ============================================================ */
+function measure(){ /* не нужно — превью само по размеру wrap */ }
+
+function setFont(p){
+  const v = Math.max(6, Math.min(96, parseFloat(p) || FONT_BASE));
+  st.fontPx = v;
+  fs.value = v;
+  fsV.textContent = v.toFixed(1) + 'px';
+  schedulePaint();
+}
+fs.oninput = e => setFont(e.target.value);
+fsV.onclick = () => setFont(DEF.font);
+
+function setScale(s){
+  st.scale = Math.min(4, Math.max(.05, s));
+  sc.value = (st.scale * 100).toFixed(1);
+  scV.textContent = (st.scale * 100).toFixed(1) + '%';
+  schedulePaint();
+}
+sc.oninput = e => setScale(parseFloat(e.target.value) / 100);
+scV.onclick = () => setScale(1);
+
+cbIn1.oninput = () => { st.text = cbIn1.value; schedulePaint(); };
+
+document.querySelectorAll('.ib').forEach(b=>{
+  b.onclick = ()=>{
+    const t = b.dataset.t, s = parseFloat(b.dataset.s);
+    if(t === 'sc') setScale(st.scale + s/100);
+    else setFont(st.fontPx + s);
+  };
+});
+
+function loadFile(f){
+  if(!f || !f.type.startsWith('image/')) return;
+  const rd = new FileReader();
+  rd.onload = e => {
+    const im = new Image();
+    im.onload = async () => {
+      try{ await im.decode?.(); }catch(err){}
+      currentImg = im;
+      st.bw = im.naturalWidth;
+      st.bh = im.naturalHeight;
+      st.loaded = true;
+      st.x = 50; st.y = 50; st.scale = 1;
+      sc.value = 100; scV.textContent = '100.0%';
+      wrap.classList.remove('empty');
+      $('dl').disabled = false;
+      schedulePaint();
+    };
+    im.src = e.target.result;
+  };
+  rd.readAsDataURL(f);
+}
+$('fi').onchange = e => loadFile(e.target.files[0]);
+wrap.onclick = () => { if(!st.loaded) $('fi').click(); };
+
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+
+let drag = null;
+function down(x,y){ if(!st.loaded) return; drag = {px:x, py:y, x:st.x, y:st.y}; wrap.classList.add('drag'); }
+function move(x,y){
+  if(!drag) return;
+  const rect = wrap.getBoundingClientRect();
+  const w = rect.width || 1;
+  st.x = drag.x + (x - drag.px) / w * 100;
+  st.y = drag.y + (y - drag.py) / w * 100;
+  schedulePaint();
+}
+function up(){ drag = null; wrap.classList.remove('drag'); }
+
+wrap.addEventListener('mousedown', e => { if(e.button!==0) return; e.preventDefault(); down(e.clientX,e.clientY); });
+addEventListener('mousemove', e => move(e.clientX,e.clientY));
+addEventListener('mouseup', up);
+
+let pinch = null;
+const td = t => Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+wrap.addEventListener('touchstart', e=>{
+  if(e.touches.length===1) down(e.touches[0].clientX, e.touches[0].clientY);
+  else if(e.touches.length===2) pinch = {d:td(e.touches), s:st.scale};
+},{passive:true});
+wrap.addEventListener('touchmove', e=>{
+  if(e.touches.length===1 && drag){ e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
+  else if(e.touches.length===2 && pinch){ e.preventDefault(); setScale(pinch.s * td(e.touches)/pinch.d); }
+},{passive:false});
+wrap.addEventListener('touchend', e=>{
+  if(e.touches.length===0){ up(); pinch=null; }
+  else if(e.touches.length===1 && pinch){ pinch=null; down(e.touches[0].clientX, e.touches[0].clientY); }
+});
+wrap.addEventListener('wheel', e=>{
+  if(!st.loaded) return;
+  e.preventDefault();
+  setScale(st.scale * (1 - e.deltaY * .0015));
+},{passive:false});
+
+addEventListener('resize', () => { renderPreview(); });
+
+/* ============================================================
+   ЭКСПОРТ
+   ============================================================ */
+let exportBusy = false;
+
+async function renderExportCanvas(){
+  await ensureReady();
+  const cv = document.createElement('canvas');
+  cv.width = EXPORT_SIZE;
+  cv.height = EXPORT_SIZE;
+  await paint(cv, EXPORT_SIZE);
   return cv;
 }
-
-const EXPORT_K = EXPORT_SIZE / DESIGN;
 
 async function downloadCanvas(){
   if(exportBusy || !st.loaded) return;
   exportBusy = true;
-
   const btn = $('dl');
   const oldHTML = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<i data-lucide="loader-circle"></i>Сохранение…';
   lucide.createIcons();
-
   try{
-    const cv = await renderCanvas();
+    const cv = await renderExportCanvas();
     const blob = await new Promise((resolve,reject)=>{
-      cv.toBlob(b=>b ? resolve(b) : reject(new Error('PNG не создан')), 'image/png', 1);
+      cv.toBlob(b => b ? resolve(b) : reject(new Error('PNG не создан')), 'image/png', 1);
     });
-
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -462,35 +584,30 @@ async function downloadCanvas(){
     lucide.createIcons();
   }
 }
-let exportBusy = false;
-
 $('dl').onclick = downloadCanvas;
 
-/* ===== ПОДЕЛИТЬСЯ ===== */
 async function shareProject(){
   try{
     const payload = {
       x: st.x, y: st.y, scale: st.scale,
       bg: st.bg,
-      text: cbIn1.value,
-      font: parseFloat(fs.value),
-      img: st.loaded ? img.src : null
+      text: st.text,
+      font: st.fontPx,
+      img: st.loaded && currentImg ? currentImg.src : null
     };
-
-    const cv = await renderCanvas();
+    const cv = await renderExportCanvas();
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     const file = new File([blob], 'canvas.png', {type:'image/png'});
 
     if (navigator.canShare && navigator.canShare({files:[file]})) {
-      await navigator.share({ files: [file], title: 'Холст', text: 'Моя картинка' });
+      await navigator.share({ files:[file], title:'Холст', text:'Моя картинка' });
       return;
     }
-
     const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
     const url = location.origin + location.pathname + '?state=' + encoded;
 
     if (navigator.share) {
-      await navigator.share({ title: 'Холст', text: 'Открой мою картинку', url });
+      await navigator.share({ title:'Холст', text:'Открой мою картинку', url });
     } else {
       await navigator.clipboard.writeText(url);
       const btn = $('sh');
@@ -512,21 +629,24 @@ $('sh').onclick = shareProject;
   if(!raw) return;
   try{
     const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
-    if(p.bg) setBg(p.bg);
-    if(p.text != null){ cbIn1.value = p.text; updateComboText(); }
+    if(p.bg) setBg(p.bg, true);
+    if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
     if(p.font) setFont(p.font);
 
     if(p.img){
       await new Promise((res)=>{
         const im = new Image();
-        im.onload = ()=>{
+        im.onload = async ()=>{
+          try{ await im.decode?.(); }catch(e){}
+          currentImg = im;
           st.bw = im.naturalWidth; st.bh = im.naturalHeight;
           st.loaded = true;
-          img.src = p.img; img.classList.add('on'); wrap.classList.remove('empty');
+          wrap.classList.remove('empty');
           $('dl').disabled = false;
-          measure(); fit();
           st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
-          draw();
+          sc.value = (st.scale * 100).toFixed(1);
+          scV.textContent = (st.scale * 100).toFixed(1) + '%';
+          schedulePaint();
           res();
         };
         im.onerror = res;
@@ -536,18 +656,24 @@ $('sh').onclick = shareProject;
   }catch(err){ console.warn('Не удалось восстановить состояние', err); }
 })();
 
-/* ===== СБРОС ===== */
-$('rs').onclick=()=>{
-  st.loaded=false;st.x=50;st.y=50;st.scale=1;
-  img.removeAttribute('src');img.classList.remove('on');wrap.classList.add('empty');
-  $('fi').value='';$('dl').disabled=true;
-  sc.value=100;scV.textContent='100.0%';
-  cbIn1.value='';
-  updateComboText();
-  setFont(DEF.font);setBg(DEF.bg);
+/* Сброс */
+$('rs').onclick = () => {
+  st.loaded = false;
+  st.x = 50; st.y = 50; st.scale = 1;
+  currentImg = null;
+  wrap.classList.add('empty');
+  $('fi').value = '';
+  $('dl').disabled = true;
+  sc.value = 100; scV.textContent = '100.0%';
+  cbIn1.value = ''; st.text = '';
+  setFont(DEF.font);
+  setBg(DEF.bg, true);
 };
 
-setFont(DEF.font);setBg(DEF.bg);
+/* Инициализация */
+setFont(DEF.font);
+setBg(DEF.bg, true);
+ensureReady().then(() => renderPreview());
 </script>
 </body>
 </html>
