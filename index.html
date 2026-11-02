@@ -166,7 +166,6 @@ const BANNER_TOP = {
 
 const DEF = { font: 16, bg: '#111214' };
 
-// Состояние цветокора (Сепия заменена на Резкость)
 const st = {
   loaded: false, x: 50, y: 50, scale: 1, bw: 0, bh: 0, bg: '#111214', text: '', fontPx: 16,
   color: { brightness: 100, contrast: 100, saturate: 100, hue: 0, sharpness: 0, blur: 0 }
@@ -183,15 +182,50 @@ const ccEls = {
   blur:       {in: $('cc-bl'), out: $('cc-bl-v'), suf: 'px'}
 };
 
+// Вспомогательная функция для создания CSS-фильтра
 function getFilterCSS() {
   const c = st.color;
-  // Для превью: резкость имитируется через contrast + drop-shadow (визуальный хак)
-  // Для экспорта: в paint() используется ctx.filter с настоящим contrast для резкости
-  let css = `brightness(${c.brightness}%) contrast(${c.contrast + c.sharpness * 0.3}%) saturate(${c.saturate}%) hue-rotate(${c.hue}deg) blur(${c.blur}px)`;
-  if (c.sharpness > 0) {
-    css += ` drop-shadow(0 0 0.5px rgba(255,255,255,0.3))`; // легкий эффект повышения детализации
+  return `brightness(${c.brightness}%) contrast(${c.contrast}%) saturate(${c.saturate}%) hue-rotate(${c.hue}deg) blur(${c.blur}px)`;
+}
+
+// Настоящая резкость (Unsharp Mask) для canvas
+function applySharpen(ctx, width, height, amount) {
+  if (amount <= 0) return;
+  const strength = amount / 100;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const w = width, h = height;
+  const output = new Uint8ClampedArray(data.length);
+  
+  // Матрица резкости (усиление центра)
+  const center = 1 + 4 * strength;
+  const edge = -strength;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
+        output[idx] = data[idx]; output[idx+1] = data[idx+1]; output[idx+2] = data[idx+2]; output[idx+3] = data[idx+3];
+        continue;
+      }
+      const left = (y * w + (x - 1)) * 4;
+      const right = (y * w + (x + 1)) * 4;
+      const top = ((y - 1) * w + x) * 4;
+      const bottom = ((y + 1) * w + x) * 4;
+
+      for (let c = 0; c < 3; c++) {
+        let val = data[idx + c] * center 
+                + data[left + c] * edge 
+                + data[right + c] * edge 
+                + data[top + c] * edge 
+                + data[bottom + c] * edge;
+        output[idx + c] = Math.max(0, Math.min(255, val));
+      }
+      output[idx + 3] = data[idx + 3];
+    }
   }
-  return css;
+  imageData.data.set(output);
+  ctx.putImageData(imageData, 0, 0);
 }
 
 function updateColorControls() {
@@ -200,7 +234,6 @@ function updateColorControls() {
     el.in.value = st.color[key];
     el.out.textContent = st.color[key] + el.suf;
   });
-  cvEl.style.filter = getFilterCSS();
   schedulePaint();
 }
 
@@ -209,7 +242,7 @@ Object.keys(ccEls).forEach(key => {
   el.in.addEventListener('input', (e) => {
     st.color[key] = parseFloat(e.target.value);
     el.out.textContent = st.color[key] + el.suf;
-    cvEl.style.filter = getFilterCSS();
+    schedulePaint(); // Перерисовываем canvas с новыми фильтрами
   });
 });
 // -----------------------
@@ -322,20 +355,41 @@ async function paint(canvas, S){
     c.save();
     c.beginPath(); c.rect(0, 0, S, S); c.clip();
     
-    // ПРИМЕНЯЕМ ФИЛЬТР ДЛЯ ЭКСПОРТА
-    // В Canvas нет параметра sharpness, поэтому мы эмулируем его через повышение контраста
+    // ПРИМЕНЯЕМ ЦВЕТОКОР ТОЛЬКО К ОСНОВНОЙ КАРТИНКЕ
+    // Сначала применяем CSS-фильтры (яркость, контраст, насыщенность, тон, блюр)
     const cCol = st.color;
-    const exportContrast = cCol.contrast + cCol.sharpness * 0.3; 
-    c.filter = `brightness(${cCol.brightness}%) contrast(${exportContrast}%) saturate(${cCol.saturate}%) hue-rotate(${cCol.hue}deg) blur(${cCol.blur}px)`;
+    c.filter = `brightness(${cCol.brightness}%) contrast(${cCol.contrast}%) saturate(${cCol.saturate}%) hue-rotate(${cCol.hue}deg) blur(${cCol.blur}px)`;
     
+    // Рисуем картинку с фильтрами
     try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); }
     catch(e){ console.warn('drawImage main failed', e); }
     
     // Сбрасываем фильтр
     c.filter = 'none';
+
+    // ПРИМЕНЯЕМ РЕЗКОСТЬ (Только к области картинки)
+    if (cCol.sharpness > 0) {
+      const rx = Math.max(0, Math.floor(cx - w/2));
+      const ry = Math.max(0, Math.floor(cy - h/2));
+      const rw = Math.min(S - rx, Math.ceil(w));
+      const rh = Math.min(S - ry, Math.ceil(h));
+      
+      if (rw > 0 && rh > 0) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = rw; tempCanvas.height = rh;
+        const tCtx = tempCanvas.getContext('2d');
+        tCtx.drawImage(canvas, rx, ry, rw, rh, 0, 0, rw, rh);
+        
+        applySharpen(tCtx, rw, rh, cCol.sharpness);
+        
+        c.drawImage(tempCanvas, rx, ry);
+      }
+    }
+    
     c.restore();
   }
 
+  // Отрисовка плашек и логотипов (идет БЕЗ фильтров)
   const tm = topMetrics();
   const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
   const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
@@ -574,7 +628,6 @@ $('rs').onclick = () => {
   sc.value = 100; scV.textContent = '100.0%'; cbIn1.value = ''; st.text = '';
   setFont(DEF.font); setBg(DEF.bg, true);
   
-  // Сброс цветокора (включая резкость)
   st.color = { brightness: 100, contrast: 100, saturate: 100, hue: 0, sharpness: 0, blur: 0 };
   updateColorControls();
 };
