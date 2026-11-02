@@ -29,14 +29,30 @@ body{display:flex;flex-direction:column;height:100vh}
 .banner .text-wrap{flex:1;text-align:left;padding-right:1em;line-height:1.2;text-transform:none}
 .banner .main-txt{font-family:'Oswald',Arial,sans-serif;font-weight:500;font-size:1.8em;letter-spacing:.02em;color:#fff}
 
-/* Нижняя часть — теперь фоновая картинка на всю ширину */
+/* Нижняя часть — одинаковые отступы слева и справа */
 .banner .bottom-part{
-  height:32px;
+  height:36px;
   flex:0 0 auto;
-  background-image:url("https://res.cloudinary.com/dplmdnxvk/image/upload/v1793630615/nhp9smb04hqlvexsx9ce.png");
-  background-size:100% 100%;
-  background-repeat:no-repeat;
-  background-position:center;
+  background:#dc143c;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  padding:0 20px;
+}
+.banner .bottom-part img{
+  height:16px;
+  width:auto;
+  max-width:100px;
+  object-fit:contain;
+  display:block;
+}
+.banner .bottom-part img:first-child{
+  height:22px;
+}
+.banner .bottom-part img:last-child{
+  margin-left:auto;
+  height:22px;
 }
 
 /* ===== ПАНЕЛЬ ===== */
@@ -79,7 +95,13 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
           <div class="main-txt" id="cbL1"></div>
         </div>
       </div>
-      <div class="bottom-part"></div>
+      <div class="bottom-part" id="bottomPart">
+        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png" alt="logo">
+        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png" alt="instagram">
+        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631164/gmxzyocecemgtxjrmmvu.png" alt="telegram">
+        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631073/nhcxkk1zwvz0kvbpsure.png" alt="link">
+        <img src="https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png" alt="right">
+      </div>
     </div>
 
     <div class="hint"><i data-lucide="image-plus"></i><span>Нажмите или перетащите картинку</span></div>
@@ -125,7 +147,7 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 <script>
 lucide.createIcons();
 const $=id=>document.getElementById(id);
-const wrap=$('wrap'),img=$('img'),bn=$('bn');
+const wrap=$('wrap'),img=$('img'),bn=$('bn'),bottomPart=$('bottomPart');
 const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
 const ci=$('ci'),hx=$('hx'),sw=$('sw');
 const cbIn1=$('cbIn1');
@@ -133,6 +155,20 @@ const cbIn1=$('cbIn1');
 const DEF={font:16,bg:'#111214'};
 const st={loaded:false,x:50,y:50,scale:1,bw:0,bh:0,fw:0,fh:0,bg:'#111214'};
 let CS=0;
+
+const BOTTOM_IMGS = [
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631164/gmxzyocecemgtxjrmmvu.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631073/nhcxkk1zwvz0kvbpsure.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png"
+];
+const bottomImgs = BOTTOM_IMGS.map(src => {
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  im.src = src;
+  return im;
+});
 
 const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
 function setBg(c,sync=true){const h=normHex(c)||DEF.bg;st.bg=h;wrap.style.background=h;if(sync){ci.value=h;hx.value=h.toUpperCase();sw.style.background=h;}}
@@ -178,7 +214,7 @@ document.querySelectorAll('.ib').forEach(b=>b.onclick=()=>{const t=b.dataset.t,s
 
 addEventListener('resize',()=>{measure();fit();draw();});
 
-/* ===== ЭКСПОРТ ===== */
+/* ===== ЭКСПОРТ — ровно как видно ===== */
 function renderCanvas(){
   const S=2048,cv=document.createElement('canvas');cv.width=cv.height=S;const x=cv.getContext('2d');
   x.imageSmoothingQuality='high';
@@ -191,23 +227,33 @@ function renderCanvas(){
   x.scale(k, k);
   x.translate(br.left - wr.left, br.top - wr.top);
   
-  const topH = bn.querySelector('.top-part').getBoundingClientRect().height;
-  const botH = bn.querySelector('.bottom-part').getBoundingClientRect().height;
+  const topEl = bn.querySelector('.top-part');
+  const topRect = topEl.getBoundingClientRect();
+  const topH = topRect.height;
   
   x.fillStyle = '#1a1c22';
   x.fillRect(0, 0, br.width, topH);
-  
-  // Нижняя полоса: градиент-заглушка (кросс-доменный PNG не тянется без CORS)
-  const grd = x.createLinearGradient(0, topH, br.width, topH + botH);
-  grd.addColorStop(0, '#34d399');
-  grd.addColorStop(1, '#10b981');
-  x.fillStyle = grd;
-  x.fillRect(0, topH, br.width, botH);
   
   x.fillStyle = '#fff';
   x.font = `500 ${parseFloat(getComputedStyle(bn).fontSize) * 1.8 * k}px Oswald, sans-serif`;
   x.textBaseline = 'middle';
   x.fillText(cbIn1.value, 20*k, topH / 2);
+  
+  const botRect = bottomPart.getBoundingClientRect();
+  x.fillStyle = '#dc143c';
+  x.fillRect(0, topH, br.width, botRect.height);
+  
+  const imgs = bottomPart.querySelectorAll('img');
+  imgs.forEach((el, i) => {
+    const im = bottomImgs[i];
+    if(!im || !im.complete || !im.naturalWidth) return;
+    const r = el.getBoundingClientRect();
+    const ix = r.left - wr.left;
+    const iy = r.top - wr.top;
+    const iw = r.width;
+    const ih = r.height;
+    try{ x.drawImage(im, ix, iy, iw, ih); }catch(e){}
+  });
   
   x.restore();
   return cv;
