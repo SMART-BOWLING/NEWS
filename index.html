@@ -31,7 +31,7 @@ body{display:flex;flex-direction:column;height:100vh}
 input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:var(--bl)}
 .val{min-width:56px;text-align:right;font-size:11px;color:var(--mu);cursor:pointer;border-radius:4px;padding:2px 4px}
 .val:hover{background:var(--s2);color:var(--tx)}
-.bg{flex:0 1 240px}
+.bg{flex:0 1 300px}
 .pw{position:relative;display:inline-flex;align-items:center;gap:8px;flex:1}
 .sw{width:28px;height:28px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;flex:0 0 auto;background:#111214}
 .hex{flex:1;min-width:0;background:none;border:none;color:var(--tx);font:12px ui-monospace,monospace;outline:none;padding:4px 2px;text-transform:uppercase}
@@ -46,7 +46,19 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 .sh{background:#7c5cff}.sh:hover{background:#6a4be0}
 #fi{display:none}
 .combo-inputs{display:flex;flex:1 1 100%;gap:8px;flex-wrap:wrap;margin-top:8px}
-.combo-inputs input{flex:1 1 200px;background:var(--s2);border:1px solid var(--bd);color:var(--tx);padding:6px 10px;border-radius:6px;font-size:12px;outline:none}
+.combo-inputs input{
+  flex:1 1 200px;
+  height:40px;
+  background:var(--s2);
+  border:1px solid var(--bd);
+  color:var(--tx);
+  padding:10px 14px;
+  border-radius:8px;
+  font-size:14px;
+  outline:none;
+  transition:border-color .15s;
+}
+.combo-inputs input:focus{border-color:var(--bl)}
 @media(max-width:760px){.stage{padding:12px}.wrap{width:min(70vh,100%)}.panel{padding:8px 8px 16px;gap:6px}.ctl{flex:1 1 100%;min-width:0}.btn{flex:1 1 auto;justify-content:center}}
 </style>
 </head>
@@ -78,6 +90,9 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
       <button class="sw" id="sw" title="Цвет фона"></button>
       <input type="color" id="ci" value="#111214">
       <input class="hex" id="hx" value="#111214" maxlength="7" spellcheck="false">
+      <button class="ib" id="pick" title="Пипетка — выбрать цвет с экрана">
+        <i data-lucide="pipette"></i>
+      </button>
     </div>
   </div></div>
 
@@ -109,11 +124,6 @@ const DESIGN = 1000;
 const EXPORT_SIZE = 2048;
 const FONT_BASE = 16;
 
-/*
-  Нижняя красная плашка — ФИКСИРОВАННАЯ (как при font-size: 25px),
-  не зависит от ползунка шрифта.
-  4-я иконка (ссылка) сделана меньше остальных.
-*/
 const BANNER_FIXED = {
   borderBottom: 2 * (25/16),
   bottomHeight: 36 * (25/16),
@@ -121,7 +131,7 @@ const BANNER_FIXED = {
   redGap: 10 * (25/16),
   logoFirstH: 22 * (25/16),
   logoSmallH: 16 * (25/16),
-  logoLinkH:  12 * (25/16),  // ← уменьшена (было 16 → стало 12)
+  logoLinkH:  12 * (25/16),
   logoLastH:  22 * (25/16),
   bgRed: '#dc143c',
   borderBottomColor: '#000',
@@ -210,6 +220,25 @@ sw.onclick=()=>ci.click();
 ci.oninput=e=>setBg(e.target.value);
 hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background=h;ci.value=h;schedulePaint();}};
 hx.onblur=()=>hx.value=st.bg.toUpperCase();
+
+/* ===== ПИПЕТКА ===== */
+const pickBtn = $('pick');
+if('EyeDropper' in window){
+  pickBtn.onclick = async () => {
+    try{
+      const eyeDropper = new EyeDropper();
+      const result = await eyeDropper.open();
+      // result.sRGBHex — "#rrggbb"
+      setBg(result.sRGBHex, true);
+    }catch(err){
+      // Пользователь отменил — ничего не делаем.
+      if(err && err.name !== 'AbortError') console.warn(err);
+    }
+  };
+}else{
+  // В Firefox/Safari API нет — прячем кнопку
+  pickBtn.style.display = 'none';
+}
 
 /* ============================================================
    ВЕРХНЯЯ ЧАСТЬ — зависит от ползунка шрифта
@@ -340,7 +369,6 @@ async function paint(canvas, S){
   c.fillRect(0, redY, S, bottomHeight);
 
   const midY = redY + bottomHeight / 2;
-  // 1: logo, 2: instagram, 3: telegram, 4: link (меньше), 5: right
   const heights = [logoFirstH, logoSmallH, logoSmallH, logoLinkH, logoLastH];
   let xPos = redPadH;
   for(let i=0;i<heights.length;i++){
