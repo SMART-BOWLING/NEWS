@@ -526,3 +526,61 @@ async function shareProject(){
     const file = new File([blob], 'canvas.png', {type:'image/png'});
     if (navigator.canShare && navigator.canShare({files:[file]})) {
       await navigator.share({ files:[file], title:'Холст', text:'Моя картинка' }); return;
+    }
+    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+    const url = location.origin + location.pathname + '?state=' + encoded;
+    if (navigator.share) { await navigator.share({ title:'Холст', text:'Открой мою картинку', url }); }
+    else {
+      await navigator.clipboard.writeText(url);
+      const btn = $('sh'); const old = btn.innerHTML;
+      btn.innerHTML = '<i data-lucide="check"></i>Скопировано'; lucide.createIcons();
+      setTimeout(()=>{ btn.innerHTML = old; lucide.createIcons(); }, 1800);
+    }
+  }catch(e){ if(e.name !== 'AbortError') console.error(e); }
+}
+$('sh').onclick = shareProject;
+
+(async function restoreFromURL(){
+  const params = new URLSearchParams(location.search);
+  const raw = params.get('state');
+  if(!raw) return;
+  try{
+    const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
+    if(p.bg) setBg(p.bg, true);
+    if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
+    if(p.font) setFont(p.font);
+    if(p.color) { st.color = {...st.color, ...p.color}; updateColorControls(); }
+
+    if(p.img){
+      await new Promise((res)=>{
+        const im = new Image();
+        im.onload = async ()=>{
+          try{ await im.decode?.(); }catch(e){}
+          currentImg = im; st.bw = im.naturalWidth; st.bh = im.naturalHeight; st.loaded = true;
+          wrap.classList.remove('empty'); $('dl').disabled = false;
+          st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
+          sc.value = (st.scale * 100).toFixed(1); scV.textContent = (st.scale * 100).toFixed(1) + '%';
+          schedulePaint(); res();
+        };
+        im.onerror = res; im.src = p.img;
+      });
+    }
+  }catch(err){ console.warn('Не удалось восстановить состояние', err); }
+})();
+
+$('rs').onclick = () => {
+  st.loaded = false; st.x = 50; st.y = 50; st.scale = 1; currentImg = null;
+  wrap.classList.add('empty'); $('fi').value = ''; $('dl').disabled = true;
+  sc.value = 100; scV.textContent = '100.0%'; cbIn1.value = ''; st.text = '';
+  setFont(DEF.font); setBg(DEF.bg, true);
+  
+  // Сброс цветокора (включая резкость)
+  st.color = { brightness: 100, contrast: 100, saturate: 100, hue: 0, sharpness: 0, blur: 0 };
+  updateColorControls();
+};
+
+setFont(DEF.font); setBg(DEF.bg, true); updateColorControls();
+ensureReady().then(() => renderPreview());
+</script>
+</body>
+</html>
