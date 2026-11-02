@@ -121,7 +121,7 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     </div></div>
     <div class="ctl"><div class="row">
       <span style="font-size:10px;width:25px;color:var(--mu)">Резк</span>
-      <input type="range" id="cc-sh" min="0" max="100" value="0">
+      <input type="range" id="cc-sh" min="0" max="300" value="0">
       <span class="val" id="cc-sh-v">0%</span>
     </div></div>
     <div class="ctl"><div class="row">
@@ -182,13 +182,25 @@ const ccEls = {
   blur:       {in: $('cc-bl'), out: $('cc-bl-v'), suf: 'px'}
 };
 
-// Вспомогательная функция для создания CSS-фильтра
-function getFilterCSS() {
-  const c = st.color;
-  return `brightness(${c.brightness}%) contrast(${c.contrast}%) saturate(${c.saturate}%) hue-rotate(${c.hue}deg) blur(${c.blur}px)`;
+function updateColorControls() {
+  Object.keys(ccEls).forEach(key => {
+    const el = ccEls[key];
+    el.in.value = st.color[key];
+    el.out.textContent = st.color[key] + el.suf;
+  });
+  schedulePaint();
 }
 
-// Настоящая резкость (Unsharp Mask) для canvas
+Object.keys(ccEls).forEach(key => {
+  const el = ccEls[key];
+  el.in.addEventListener('input', (e) => {
+    st.color[key] = parseFloat(e.target.value);
+    el.out.textContent = st.color[key] + el.suf;
+    schedulePaint();
+  });
+});
+
+// Функция резкости (Unsharp Mask)
 function applySharpen(ctx, width, height, amount) {
   if (amount <= 0) return;
   const strength = amount / 100;
@@ -196,8 +208,6 @@ function applySharpen(ctx, width, height, amount) {
   const data = imageData.data;
   const w = width, h = height;
   const output = new Uint8ClampedArray(data.length);
-  
-  // Матрица резкости (усиление центра)
   const center = 1 + 4 * strength;
   const edge = -strength;
 
@@ -227,24 +237,6 @@ function applySharpen(ctx, width, height, amount) {
   imageData.data.set(output);
   ctx.putImageData(imageData, 0, 0);
 }
-
-function updateColorControls() {
-  Object.keys(ccEls).forEach(key => {
-    const el = ccEls[key];
-    el.in.value = st.color[key];
-    el.out.textContent = st.color[key] + el.suf;
-  });
-  schedulePaint();
-}
-
-Object.keys(ccEls).forEach(key => {
-  const el = ccEls[key];
-  el.in.addEventListener('input', (e) => {
-    st.color[key] = parseFloat(e.target.value);
-    el.out.textContent = st.color[key] + el.suf;
-    schedulePaint(); // Перерисовываем canvas с новыми фильтрами
-  });
-});
 // -----------------------
 
 const BOTTOM_IMGS = [
@@ -340,8 +332,11 @@ async function paint(canvas, S){
   const k = S / DESIGN;
   c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
 
-  c.fillStyle = st.bg; c.fillRect(0, 0, S, S);
+  // 1. Фон
+  c.fillStyle = st.bg; 
+  c.fillRect(0, 0, S, S);
 
+  // 2. Основная картинка с фильтрами (ТОЛЬКО ДЛЯ НЕЁ)
   if(st.loaded && currentImg && currentImg.naturalWidth){
     const ratio = st.bw / st.bh;
     let fwD, fhD;
@@ -352,36 +347,46 @@ async function paint(canvas, S){
     const cx = st.x / 100 * S;
     const cy = st.y / 100 * S;
     
+    // Сохраняем контекст и делаем клиппинг
     c.save();
-    c.beginPath(); c.rect(0, 0, S, S); c.clip();
+    c.beginPath(); 
+    c.rect(0, 0, S, S); 
+    c.clip();
     
-    // ПРИМЕНЯЕМ ЦВЕТОКОР ТОЛЬКО К ОСНОВНОЙ КАРТИНКЕ
-    // Сначала применяем CSS-фильтры (яркость, контраст, насыщенность, тон, блюр)
     const cCol = st.color;
+    
+    // ВАЖНО: Применяем фильтры Canvas 2D API к контексту. 
+    // Они будут применены ТОЛЬКО к drawImage ниже.
     c.filter = `brightness(${cCol.brightness}%) contrast(${cCol.contrast}%) saturate(${cCol.saturate}%) hue-rotate(${cCol.hue}deg) blur(${cCol.blur}px)`;
     
-    // Рисуем картинку с фильтрами
-    try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); }
-    catch(e){ console.warn('drawImage main failed', e); }
+    try{ 
+      c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); 
+    } catch(e){ 
+      console.warn('drawImage main failed', e); 
+    }
     
     // Сбрасываем фильтр
     c.filter = 'none';
 
-    // ПРИМЕНЯЕМ РЕЗКОСТЬ (Только к области картинки)
+    // 3. Резкость (применяется только к области картинки)
     if (cCol.sharpness > 0) {
+      // Вычисляем видимую область картинки (чтобы не обрабатывать пустые пиксели)
       const rx = Math.max(0, Math.floor(cx - w/2));
       const ry = Math.max(0, Math.floor(cy - h/2));
       const rw = Math.min(S - rx, Math.ceil(w));
       const rh = Math.min(S - ry, Math.ceil(h));
       
       if (rw > 0 && rh > 0) {
+        // Копируем только видимую часть картинки на временный холст
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = rw; tempCanvas.height = rh;
         const tCtx = tempCanvas.getContext('2d');
         tCtx.drawImage(canvas, rx, ry, rw, rh, 0, 0, rw, rh);
         
+        // Применяем резкость
         applySharpen(tCtx, rw, rh, cCol.sharpness);
         
+        // Возвращаем обратно на основной холст
         c.drawImage(tempCanvas, rx, ry);
       }
     }
@@ -389,7 +394,7 @@ async function paint(canvas, S){
     c.restore();
   }
 
-  // Отрисовка плашек и логотипов (идет БЕЗ фильтров)
+  // 4. Отрисовка плашек (идет БЕЗ фильтров, так как c.filter = 'none' и c.restore())
   const tm = topMetrics();
   const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
   const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
