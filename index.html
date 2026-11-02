@@ -64,9 +64,9 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 .sharpen-wrap{
   display:inline-flex;
   align-items:center;
-  gap:6px;
+  gap:8px;
   height:36px;
-  padding:0 12px;
+  padding:0 14px;
   background:var(--s);
   border:1px solid var(--bd);
   border-radius:var(--r);
@@ -75,8 +75,16 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
   cursor:pointer;
   user-select:none;
   white-space:nowrap;
+  transition:background .15s, border-color .15s, color .15s;
 }
-.sharpen-wrap input{accent-color:var(--bl);cursor:pointer;width:16px;height:16px}
+.sharpen-wrap:hover{background:#3a3d44}
+.sharpen-wrap input{accent-color:var(--bl);cursor:pointer;width:16px;height:16px;margin:0}
+.sharpen-wrap.active{
+  background:rgba(46,136,247,.15);
+  border-color:var(--bl);
+  color:#9ec5ff;
+}
+.sharpen-wrap.active:hover{background:rgba(46,136,247,.25)}
 .sharpen-wrap.disabled{opacity:.5;pointer-events:none}
 
 @media(max-width:760px){.stage{padding:12px}.wrap{width:min(70vh,100%)}.panel{padding:8px 8px 16px;gap:6px}.ctl{flex:1 1 100%;min-width:0}.btn{flex:1 1 auto;justify-content:center}}
@@ -126,8 +134,7 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 
     <label class="sharpen-wrap" id="sharpenWrap" title="Unsharp Mask — применяется только при сохранении">
       <input type="checkbox" id="sharpenToggle">
-      <i data-lucide="sparkles" style="width:14px;height:14px"></i>
-      Улучшить резкость
+      <span>Улучшить резкость</span>
     </label>
 
     <button id="sh" class="btn sh"><i data-lucide="share-2"></i>Поделиться</button>
@@ -147,7 +154,7 @@ const sharpenToggle=$('sharpenToggle');
 const sharpenWrap=$('sharpenWrap');
 
 /* ============================================================
-   ЭТАЛОННАЯ ГЕОМЕТРИЯ — всё в DESIGN-координатах (1000×1000)
+   ЭТАЛОННАЯ ГЕОМЕТРИЯ
    ============================================================ */
 const DESIGN = 1000;
 const EXPORT_SIZE = 2048;
@@ -187,8 +194,8 @@ const st = {
   bg: '#111214',
   text: '',
   fontPx: 16,
-  sharpen: false,   // ручной режим
-  sharpenAuto: true // авто-предложение
+  sharpen: false,
+  sharpenAuto: true
 };
 let currentImg = null;
 
@@ -268,36 +275,64 @@ if('EyeDropper' in window){
   pickBtn.style.display = 'none';
 }
 
-/* ===== ЧЕКБОКС РЕЗКОСТИ ===== */
-function setSharpenUI(){
+/* ============================================================
+   ЧЕКБОКС РЕЗКОСТИ — теперь надёжный
+   ============================================================ */
+
+// 1) Клик по всей плашке гарантированно переключает чекбокс
+sharpenWrap.addEventListener('click', (e)=>{
+  if(sharpenWrap.classList.contains('disabled')) return;
+  // Если клик был непосредственно по input — не мешаем дефолтному поведению
+  if(e.target === sharpenToggle) return;
+  e.preventDefault();
+  sharpenToggle.checked = !sharpenToggle.checked;
+  sharpenToggle.dispatchEvent(new Event('change', {bubbles:true}));
+});
+
+sharpenToggle.addEventListener('change', () => {
+  st.sharpen = sharpenToggle.checked;
+  st.sharpenAuto = false;
+  updateSharpenUI();
+  // Дадим пользователю обратную связь
+  if(st.sharpen && st.loaded){
+    const up = Math.min(EXPORT_SIZE / st.bw, EXPORT_SIZE / st.bh);
+    if(up < 1.05){
+      console.info('Улучшение резкости включено. Источник уже ≥ 2048px — эффект будет минимальным, это нормально.');
+    }else{
+      console.info(`Улучшение резкости включено (апскейл ×${up.toFixed(1)}). Эффект применится при сохранении.`);
+    }
+  }
+});
+
+function updateSharpenUI(){
   if(!st.loaded){
     sharpenToggle.checked = false;
+    sharpenWrap.classList.remove('active');
     sharpenWrap.classList.add('disabled');
     return;
   }
   sharpenWrap.classList.remove('disabled');
-  // Авто-решение: включаем, если картинка апскейлится (источник < EXPORT_SIZE)
-  const needSharpen = Math.min(st.bw, st.bh) < EXPORT_SIZE;
-  if(st.sharpenAuto && needSharpen){
-    st.sharpen = true;
-    sharpenToggle.checked = true;
+  sharpenToggle.checked = !!st.sharpen;
+  if(st.sharpen) sharpenWrap.classList.add('active');
+  else sharpenWrap.classList.remove('active');
+
+  const up = Math.min(EXPORT_SIZE / st.bw, EXPORT_SIZE / st.bh);
+  if(up > 1.05){
+    sharpenWrap.title = `Unsharp Mask (апскейл ×${up.toFixed(1)}) — применяется только при сохранении`;
   }else{
-    sharpenToggle.checked = st.sharpen;
+    sharpenWrap.title = 'Unsharp Mask — источник уже большого размера, эффект слабый';
   }
-  // Меняем подпись, если апскейл большой
-  const upFactor = Math.min(EXPORT_SIZE / st.bw, EXPORT_SIZE / st.bh);
-  sharpenWrap.title = upFactor > 1.5
-    ? `Источник ${st.bw}×${st.bh} — сильный апскейл (×${upFactor.toFixed(1)}). Unsharp Mask сгладит артефакты.`
-    : `Применить Unsharp Mask при сохранении`;
 }
-sharpenToggle.onchange = () => {
-  st.sharpen = sharpenToggle.checked;
-  st.sharpenAuto = false; // пользователь выбрал вручную
-};
+
+/* При загрузке новой картинки — авто-решение */
+function autoSharpenDecision(){
+  st.sharpenAuto = true;
+  st.sharpen = Math.min(st.bw, st.bh) < EXPORT_SIZE;
+  updateSharpenUI();
+}
 
 /* ============================================================
-   UNSHARP MASK (кроссбраузерно, без ctx.filter url())
-   result = original + amount * (original - blurred)
+   UNSHARP MASK (кроссбраузерно)
    ============================================================ */
 function unsharpMask(targetCtx, srcImg, dx, dy, dw, dh, amount, radiusPx){
   if(!srcImg || !srcImg.naturalWidth) return;
@@ -308,7 +343,6 @@ function unsharpMask(targetCtx, srcImg, dx, dy, dw, dh, amount, radiusPx){
   const blurred = document.createElement('canvas');
   blurred.width = W; blurred.height = H;
   const bctx = blurred.getContext('2d');
-  // ctx.filter поддерживается во всех современных браузерах кроме старых Safari
   if('filter' in bctx){
     try{
       bctx.filter = `blur(${radiusPx}px)`;
@@ -318,23 +352,22 @@ function unsharpMask(targetCtx, srcImg, dx, dy, dw, dh, amount, radiusPx){
       bctx.drawImage(srcImg, 0, 0, W, H);
     }
   }else{
-    // Fallback: без размытия — просто original, эффект будет слабее
     bctx.drawImage(srcImg, 0, 0, W, H);
   }
 
-  // 2) Разница (original - blurred) → берём abs через difference
+  // 2) Разница
   const diff = document.createElement('canvas');
   diff.width = W; diff.height = H;
   const dctx = diff.getContext('2d');
-  dctx.drawImage(srcImg, 0, 0, W, H);          // original
+  dctx.drawImage(srcImg, 0, 0, W, H);
   dctx.globalCompositeOperation = 'difference';
-  dctx.drawImage(blurred, 0, 0);               // |original - blurred|
+  dctx.drawImage(blurred, 0, 0);
   dctx.globalCompositeOperation = 'source-over';
 
-  // 3) Рисуем оригинал в целевом месте
+  // 3) Оригинал
   targetCtx.drawImage(srcImg, dx, dy, dw, dh);
 
-  // 4) Накладываем разницу с 'lighter' (аддитивно), с силой amount
+  // 4) Усиление краёв
   targetCtx.save();
   targetCtx.globalCompositeOperation = 'lighter';
   targetCtx.globalAlpha = Math.max(0, Math.min(1, amount));
@@ -343,7 +376,7 @@ function unsharpMask(targetCtx, srcImg, dx, dy, dw, dh, amount, radiusPx){
 }
 
 /* ============================================================
-   ВЕРХНЯЯ ЧАСТЬ — зависит от ползунка шрифта
+   ВЕРХНЯЯ ЧАСТЬ
    ============================================================ */
 function topMetrics(){
   const f = st.fontPx / FONT_BASE;
@@ -357,9 +390,6 @@ function topMetrics(){
   };
 }
 
-/* ============================================================
-   ПЕРЕНОС ТЕКСТА
-   ============================================================ */
 function layoutText(ctx, text, maxWidth){
   if(!text) return [];
   ctx.save();
@@ -386,8 +416,7 @@ function layoutText(ctx, text, maxWidth){
 }
 
 /* ============================================================
-   ГЛАВНАЯ ФУНКЦИЯ РИСОВАНИЯ (превью + экспорт)
-   useSharpen = true только при экспорте
+   ГЛАВНАЯ ФУНКЦИЯ РИСОВАНИЯ
    ============================================================ */
 async function paint(canvas, S, useSharpen = false){
   const c = canvas.getContext('2d', {alpha:false});
@@ -418,20 +447,16 @@ async function paint(canvas, S, useSharpen = false){
 
     try{
       if(useSharpen && st.sharpen){
-        // Подбираем силу по степени апскейла
         const upX = w / st.bw;
         const upY = h / st.bh;
         const up = Math.max(1, (upX + upY) / 2);
-        // Чем сильнее апскейл — тем сильнее шарп, но не больше 0.9
         const amount = Math.min(0.9, 0.25 + (up - 1) * 0.3);
-        // Радиус ~1.2% от размера отрисовки
         const radius = Math.max(0.5, Math.min(3, w * 0.0015));
         unsharpMask(c, currentImg, dx, dy, w, h, amount, radius);
       }else{
         c.drawImage(currentImg, dx, dy, w, h);
       }
     }catch(e){
-      // Fallback
       try{ c.drawImage(currentImg, dx, dy, w, h); }catch(err){}
       console.warn('drawImage main failed', e);
     }
@@ -439,7 +464,6 @@ async function paint(canvas, S, useSharpen = false){
   }
 
   const tm = topMetrics();
-
   const borderTop    = tm.borderTop * k;
   const topPadV      = tm.topPadV * k;
   const topPadH      = tm.topPadH * k;
@@ -535,7 +559,7 @@ async function renderPreview(){
       cvEl.width = px;
       cvEl.height = px;
     }
-    await paint(cvEl, px, false); // ← без шарпа в превью
+    await paint(cvEl, px, false);
   } finally {
     previewRendering = false;
   }
@@ -606,16 +630,11 @@ function loadFile(f){
       sc.value = 100; scV.textContent = '100.0%';
       wrap.classList.remove('empty');
       $('dl').disabled = false;
-
-      // Авто-включение шарпа при апскейле
-      st.sharpenAuto = true;
-      st.sharpen = Math.min(st.bw, st.bh) < EXPORT_SIZE;
-      setSharpenUI();
+      autoSharpenDecision();
 
       if(Math.min(st.bw, st.bh) < 1024){
-        console.warn(`Изображение ${st.bw}×${st.bh} меньше 1024px по одной из сторон. Рекомендуется источник ≥ 2048px для идеальной резкости.`);
+        console.warn(`Изображение ${st.bw}×${st.bh} меньше 1024px. Рекомендуется источник ≥ 2048px.`);
       }
-
       schedulePaint();
     };
     im.src = e.target.result;
@@ -676,7 +695,7 @@ async function renderExportCanvas(){
   const cv = document.createElement('canvas');
   cv.width = EXPORT_SIZE;
   cv.height = EXPORT_SIZE;
-  await paint(cv, EXPORT_SIZE, true); // ← с шарпом
+  await paint(cv, EXPORT_SIZE, true);
   return cv;
 }
 
@@ -775,10 +794,12 @@ $('sh').onclick = shareProject;
           if(typeof p.sharpen === 'boolean'){
             st.sharpen = p.sharpen;
             st.sharpenAuto = false;
+          }else{
+            autoSharpenDecision();
           }
           sc.value = (st.scale * 100).toFixed(1);
           scV.textContent = (st.scale * 100).toFixed(1) + '%';
-          setSharpenUI();
+          updateSharpenUI();
           schedulePaint();
           res();
         };
@@ -801,13 +822,13 @@ $('rs').onclick = () => {
   $('dl').disabled = true;
   sc.value = 100; scV.textContent = '100.0%';
   cbIn1.value = ''; st.text = '';
-  setSharpenUI();
+  updateSharpenUI();
   setFont(DEF.font);
   setBg(DEF.bg, true);
 };
 
 /* Инициализация */
-setSharpenUI();
+updateSharpenUI();
 setFont(DEF.font);
 setBg(DEF.bg, true);
 ensureReady().then(() => renderPreview());
