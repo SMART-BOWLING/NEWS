@@ -156,6 +156,9 @@ const DEF={font:16,bg:'#111214'};
 const st={loaded:false,x:50,y:50,scale:1,bw:0,bh:0,fw:0,fh:0,bg:'#111214'};
 let CS=0;
 
+/* ===== Загрузка картинок нижней панели для canvas =====
+   Пробуем два способа: CORS-Image и fetch→dataURL.
+   Это надёжнее для Cloudinary и подобных CDN. */
 const BOTTOM_IMGS = [
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png",
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png",
@@ -163,12 +166,38 @@ const BOTTOM_IMGS = [
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631073/nhcxkk1zwvz0kvbpsure.png",
   "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png"
 ];
-const bottomImgs = BOTTOM_IMGS.map(src => {
-  const im = new Image();
-  im.crossOrigin = 'anonymous';
-  im.src = src;
-  return im;
-});
+const bottomImgs = BOTTOM_IMGS.map(() => null);
+
+async function loadBottomImages(){
+  for (let i=0;i<BOTTOM_IMGS.length;i++){
+    const src = BOTTOM_IMGS[i];
+    try{
+      const resp = await fetch(src, {mode:'cors'});
+      if(!resp.ok) throw new Error('fetch failed');
+      const blob = await resp.blob();
+      const dataUrl = await new Promise(res=>{
+        const fr = new FileReader();
+        fr.onload = ()=>res(fr.result);
+        fr.readAsDataURL(blob);
+      });
+      const im = new Image();
+      await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = dataUrl; });
+      bottomImgs[i] = im;
+    }catch(e){
+      // фолбэк через CORS-Image
+      try{
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = src; });
+        bottomImgs[i] = im;
+      }catch(e2){
+        console.warn('Не удалось загрузить картинку для экспорта:', src);
+        bottomImgs[i] = null;
+      }
+    }
+  }
+  return bottomImgs;
+}
 
 const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
 function setBg(c,sync=true){const h=normHex(c)||DEF.bg;st.bg=h;wrap.style.background=h;if(sync){ci.value=h;hx.value=h.toUpperCase();sw.style.background=h;}}
@@ -215,52 +244,76 @@ document.querySelectorAll('.ib').forEach(b=>b.onclick=()=>{const t=b.dataset.t,s
 addEventListener('resize',()=>{measure();fit();draw();});
 
 /* ===== ЭКСПОРТ — ровно как видно ===== */
-function renderCanvas(){
+async function renderCanvas(){
+  // подгружаем картинки, если ещё не загружены
+  await loadBottomImages();
+
   const S=2048,cv=document.createElement('canvas');cv.width=cv.height=S;const x=cv.getContext('2d');
   x.imageSmoothingQuality='high';
   x.fillStyle=st.bg;x.fillRect(0,0,S,S);
-  if(st.loaded){const w=st.fw*st.scale*S/CS,h=st.fh*st.scale*S/CS,cx=st.x/100*S,cy=st.y/100*S;x.drawImage(img,cx-w/2,cy-h/2,w,h);}
-  
+
+  if(st.loaded){
+    const w=st.fw*st.scale*S/CS, h=st.fh*st.scale*S/CS;
+    const cx=st.x/100*S, cy=st.y/100*S;
+    x.drawImage(img, cx-w/2, cy-h/2, w, h);
+  }
+
   const br=bn.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
   const k=S/wr.width;
-  x.save();
-  x.scale(k, k);
-  x.translate(br.left - wr.left, br.top - wr.top);
-  
+
+  // Координаты плашки в пикселях canvas
+  const bnLeft = (br.left - wr.left) * k;
+  const bnTop  = (br.top  - wr.top ) * k;
+  const bnW    = br.width  * k;
+
   const topEl = bn.querySelector('.top-part');
   const topRect = topEl.getBoundingClientRect();
-  const topH = topRect.height;
-  
+  const topH = topRect.height * k;
+
+  // Тёмная часть
   x.fillStyle = '#1a1c22';
-  x.fillRect(0, 0, br.width, topH);
-  
+  x.fillRect(bnLeft, bnTop, bnW, topH);
+
+  // Текст — берём реальный computed style и координаты
+  const mainTxt = $('cbL1');
+  const cs = getComputedStyle(mainTxt);
+  const fontSizePx = parseFloat(cs.fontSize);            // уже итоговый размер в px
+  const fontFamily = cs.fontFamily || 'Oswald, Arial, sans-serif';
+  const fontWeight = cs.fontWeight || '500';
+
   x.fillStyle = '#fff';
-  x.font = `500 ${parseFloat(getComputedStyle(bn).fontSize) * 1.8 * k}px Oswald, sans-serif`;
+  x.font = `${fontWeight} ${fontSizePx * k}px ${fontFamily}`;
   x.textBaseline = 'middle';
-  x.fillText(cbIn1.value, 20*k, topH / 2);
-  
+
+  const txtRect = mainTxt.getBoundingClientRect();
+  const tx = (txtRect.left - wr.left) * k;
+  const ty = (txtRect.top  - wr.top ) * k + (txtRect.height * k) / 2;
+
+  x.fillText(cbIn1.value, tx, ty);
+
+  // Нижняя часть
   const botRect = bottomPart.getBoundingClientRect();
   x.fillStyle = '#dc143c';
-  x.fillRect(0, topH, br.width, botRect.height);
-  
+  x.fillRect(bnLeft, bnTop + topH, bnW, botRect.height * k);
+
+  // Картинки — в реальных позициях
   const imgs = bottomPart.querySelectorAll('img');
   imgs.forEach((el, i) => {
     const im = bottomImgs[i];
-    if(!im || !im.complete || !im.naturalWidth) return;
+    if(!im || !im.naturalWidth) return;
     const r = el.getBoundingClientRect();
-    const ix = r.left - wr.left;
-    const iy = r.top - wr.top;
-    const iw = r.width;
-    const ih = r.height;
-    try{ x.drawImage(im, ix, iy, iw, ih); }catch(e){}
+    const ix = (r.left - wr.left) * k;
+    const iy = (r.top  - wr.top ) * k;
+    const iw = r.width  * k;
+    const ih = r.height * k;
+    try{ x.drawImage(im, ix, iy, iw, ih); }catch(e){ console.warn('drawImage error', i, e); }
   });
-  
-  x.restore();
+
   return cv;
 }
 
-$('dl').onclick=()=>{
-  const cv = renderCanvas();
+$('dl').onclick=async ()=>{
+  const cv = await renderCanvas();
   cv.toBlob(b=>{if(!b)return;const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='canvas.png';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);},'image/png');
 };
 
@@ -275,7 +328,7 @@ async function shareProject(){
       img: st.loaded ? img.src : null
     };
 
-    const cv = renderCanvas();
+    const cv = await renderCanvas();
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     const file = new File([blob], 'canvas.png', {type:'image/png'});
 
