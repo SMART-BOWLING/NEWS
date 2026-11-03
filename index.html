@@ -455,7 +455,7 @@ async function paint(canvas, S){
       c.font = `700 ${actualFont}px ${BANNER_TOP.fontFamily}`;
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillText(label, x + w/2, midY + actualFont * 0.02);
+      c.fillText(label, x + w/2, midY - 2 * k);
     }
     c.restore();
   }
