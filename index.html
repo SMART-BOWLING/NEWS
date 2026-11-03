@@ -128,8 +128,8 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     <span class="badge-color-label">Плашка справа</span>
     <div class="pw">
       <button class="sw" id="badgeSw" title="Цвет правой нижней плашки"></button>
-      <input type="color" id="badgeCi" value="#111214" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0">
-      <input class="hex" id="badgeHx" value="#111214" maxlength="7" spellcheck="false">
+      <input type="color" id="badgeCi" value="#9a5cf8" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0">
+      <input class="hex" id="badgeHx" value="#9a5cf8" maxlength="7" spellcheck="false">
     </div>
   </div></div>
 
@@ -279,7 +279,7 @@ hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background
 hx.onblur=()=>hx.value=st.bg.toUpperCase();
 
 function setBadgeBg(c,sync=true){
-  const h=normHex(c)||'#111214';
+  const h=normHex(c)||'#9a5cf8';
   st.badgeBg=h;
   if(sync){ badgeCi.value=h; badgeHx.value=h.toUpperCase(); badgeSw.style.background=h; }
   schedulePaint();
@@ -663,12 +663,12 @@ $('rs').onclick = () => {
 
   st.badgeText = 'NEWS';
   badgeText.value = 'NEWS';
-  setBadgeBg('#111214', true);
+  setBadgeBg('#9a5cf8', true);
 
   schedulePaint();
 };
 
-setFont(DEF.font); setBg(DEF.bg, true); setBadgeBg('#111214', true);
+setFont(DEF.font); setBg(DEF.bg, true); setBadgeBg('#9a5cf8', true);
 ensureReady().then(() => renderPreview());
 </script>
 </body>
