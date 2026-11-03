@@ -1,168 +1,675 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NEWS кнопка — настройка текста и цвета</title>
-  <style>
-    /* Базовые стили, соответствующие тёмной теме родительской страницы */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Холст</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--bg:#1e1f22;--s:#2b2d31;--s2:#313338;--bd:#3f4147;--tx:#e6e6e8;--mu:#9a9ca3;--bl:#2e88f7;--pk:#e5456a;--gr:#13d679;--r:10px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:14px -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
+body{display:flex;flex-direction:column;height:100vh}
 
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background-color: #1a1b1e;
-      font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-    }
+.panel { max-height: 45vh; overflow-y: auto; }
 
-    /* Контейнер-демо, имитирует правый нижний угол */
-    .demo-wrapper {
-      position: relative;
-      width: 360px;
-      height: 240px;
-      background: #111214;
-      border-radius: 10px;
-      border: 1px solid #3f4147;
-      display: flex;
-      justify-content: flex-end;
-      align-items: flex-end;
-      padding: 16px;
-    }
+.stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:24px;background:#1a1b1e}
+.wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none}
+.wrap.drag{cursor:grabbing}
+.wrap.empty{cursor:pointer;border:2px dashed var(--bd)}
+.wrap.empty::before{content:"";position:absolute;inset:0;z-index:0;background:repeating-linear-gradient(45deg,#1c1d20,#1c1d20 12px,#202226 12px,#202226 24px)}
+.wrap:not(.empty)::before{display:none}
+.hint{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mu);font-size:13px;text-align:center;pointer-events:none}
+.hint i{width:34px;height:34px}
+.wrap:not(.empty) .hint{display:none}
+#cv{display:block;width:100%;height:100%;position:absolute;inset:0;z-index:1;pointer-events:none}
 
-    /* 
-      Кнопка NEWS — полностью кастомизируемая.
-      Меняйте текст внутри span и цвет фона через переменную --bg-color.
-    */
-    .news-button {
-      --bg-color: #dc143c;          /* цвет подложки — меняйте здесь */
-      --text-color: #ffffff;        /* цвет текста — меняйте здесь */
-      
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px 16px;
-      border: none;
-      border-radius: 10px;
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      font: 600 14px 'Oswald', Arial, sans-serif;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-      user-select: none;
-      white-space: nowrap;
-    }
+.panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.ctl{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;display:flex;align-items:center;flex:0 1 240px;min-width:190px}
+.row{display:flex;align-items:center;gap:6px;width:100%}
 
-    .news-button:hover {
-      filter: brightness(1.15);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-    }
+/* ОБЩИЙ КОНТЕЙНЕР ДЛЯ ЦВЕТА И РЕЗКОСТИ */
+.bg-sharp-group {
+  display: flex;
+  flex: 2 1 500px; /* Занимает больше места, чем обычный контрол */
+  gap: 8px;
+  min-width: 0;
+}
+.bg-sharp-group .ctl { flex: 1 1 50%; min-width: 0; }
 
-    .news-button:active {
-      transform: scale(0.96);
-    }
+.ib{width:24px;height:24px;padding:0;border:1px solid var(--bd);background:var(--s2);color:var(--tx);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ib:hover{background:#3a3d44}
+.ib i{width:13px;height:13px}
+input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:var(--bl)}
+.val{min-width:56px;text-align:right;font-size:11px;color:var(--mu);cursor:pointer;border-radius:4px;padding:2px 4px}
+.val:hover{background:var(--s2);color:var(--tx)}
+.pw{position:relative;display:inline-flex;align-items:center;gap:8px;flex:1}
+.sw{width:28px;height:28px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;flex:0 0 auto;background:#111214}
+.hex{flex:1;min-width:0;background:none;border:none;color:var(--tx);font:12px ui-monospace,monospace;outline:none;padding:4px 2px;text-transform:uppercase}
+#ci{position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:36px;border:none;border-radius:var(--r);font:600 12px inherit;color:#fff;cursor:pointer;white-space:nowrap}
+.btn i{width:14px;height:14px}
+.u{background:var(--bl)}.u:hover{background:#1e74e0}
+.d{background:var(--gr)}.d:hover{background:#0fbb69}
+.d:disabled{background:#4a4d54;color:#888b92;cursor:not-allowed}
+.r{background:var(--pk)}.r:hover{background:#cf3459}
+.sh{background:#7c5cff}.sh:hover{background:#6a4be0}
+#fi{display:none}
+.combo-inputs{display:flex;flex:1 1 100%;gap:8px;flex-wrap:wrap;margin-top:8px}
+.combo-inputs input{
+  flex:1 1 200px;height:40px;background:var(--s2);border:1px solid var(--bd);color:var(--tx);
+  padding:10px 14px;border-radius:8px;font-size:14px;outline:none;transition:border-color .15s;
+}
+.combo-inputs input:focus{border-color:var(--bl)}
+.badge-color-ctl{flex:0 1 240px;min-width:190px}
+.badge-color-label{font-size:11px;color:var(--mu);white-space:nowrap;margin-right:6px}
 
-    /* 
-      Дополнительные примеры кнопок с разными цветами и текстом,
-      чтобы показать гибкость настройки.
-    */
-    .news-button.sport {
-      --bg-color: #13d679;
-      --text-color: #111214;
-    }
-
-    .news-button.tech {
-      --bg-color: #2e88f7;
-      --text-color: #ffffff;
-    }
-
-    .news-button.opinion {
-      --bg-color: #7c5cff;
-      --text-color: #ffffff;
-    }
-
-    .news-button.warning {
-      --bg-color: #f7a52e;
-      --text-color: #111214;
-    }
-
-    /* Подпись под кнопкой (для демонстрации) */
-    .caption {
-      position: absolute;
-      left: 16px;
-      top: 16px;
-      color: #9a9ca3;
-      font-size: 12px;
-      font-family: ui-monospace, monospace;
-      pointer-events: none;
-    }
-  </style>
+@media(max-width:760px){
+  .stage{padding:12px}
+  .wrap{width:min(70vh,100%)}
+  .panel{padding:8px 8px 16px;gap:6px}
+  .ctl{flex:1 1 100%;min-width:0}
+  .bg-sharp-group { flex-direction: column; flex: 1 1 100%; }
+  .bg-sharp-group .ctl { flex: 1 1 100%; }
+  .btn{flex:1 1 auto;justify-content:center}
+}
+</style>
 </head>
 <body>
+<div class="stage">
+  <div class="wrap empty" id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="hint"><i data-lucide="image-plus"></i><span>Нажмите или перетащите картинку</span></div>
+  </div>
+</div>
 
-  <div class="demo-wrapper">
-    <!-- Подпись для наглядности -->
-    <span class="caption">меняйте текст и --bg-color</span>
+<div class="panel">
+  <div class="ctl"><div class="row">
+    <button class="ib" data-t="sc" data-s="-1"><i data-lucide="minus"></i></button>
+    <input type="range" id="sc" min="5" max="400" value="100" step="0.1">
+    <button class="ib" data-t="sc" data-s="1"><i data-lucide="plus"></i></button>
+    <span class="val" id="scV">100.0%</span>
+  </div></div>
 
-    <!-- 
-      Сама кнопка NEWS.
-      • Текст: внутри <span> — можно заменить на любой.
-      • Цвет: переменная --bg-color в стиле .news-button.
-      • Цвет текста: --text-color.
-    -->
-    <button class="news-button" id="newsButton">
-      <span id="newsText">NEWS</span>
-    </button>
+  <div class="ctl"><div class="row">
+    <button class="ib" data-t="fs" data-s="-0.5"><i data-lucide="minus"></i></button>
+    <input type="range" id="fs" min="6" max="96" value="16" step="0.1">
+    <button class="ib" data-t="fs" data-s="0.5"><i data-lucide="plus"></i></button>
+    <span class="val" id="fsV">16.0px</span>
+  </div></div>
+
+  <!-- ГРУППА: ЦВЕТ + РЕЗКОСТЬ В ОДНОЙ СТРОКЕ -->
+  <div class="bg-sharp-group">
+    <div class="ctl"><div class="row">
+      <div class="pw">
+        <button class="sw" id="sw" title="Цвет фона"></button>
+        <input type="color" id="ci" value="#111214">
+        <input class="hex" id="hx" value="#111214" maxlength="7" spellcheck="false">
+        <button class="ib" id="pick" title="Пипетка — выбрать цвет с экрана"><i data-lucide="pipette"></i></button>
+      </div>
+    </div></div>
+
+    <div class="ctl"><div class="row">
+      <span style="font-size:10px;width:35px;color:var(--mu);text-align:center">Резк</span>
+      <input type="range" id="cc-sh" min="0" max="300" value="0">
+      <span class="val" id="cc-sh-v">0%</span>
+    </div></div>
+  </div>
+  <!-- // ГРУППА -->
+
+  <div class="combo-inputs">
+    <input type="text" id="cbIn1" placeholder="Текст темной плашки">
+    <input type="text" id="badgeText" value="NEWS" placeholder="Текст правой нижней плашки" maxlength="24">
   </div>
 
-  <!-- Небольшой скрипт для демонстрации динамического изменения текста и цвета -->
-  <script>
-    (function() {
-      const btn = document.getElementById('newsButton');
-      const textSpan = document.getElementById('newsText');
+  <div class="ctl badge-color-ctl"><div class="row">
+    <span class="badge-color-label">Плашка справа</span>
+    <div class="pw">
+      <button class="sw" id="badgeSw" title="Цвет правой нижней плашки"></button>
+      <input type="color" id="badgeCi" value="#111214" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0">
+      <input class="hex" id="badgeHx" value="#111214" maxlength="7" spellcheck="false">
+    </div>
+  </div></div>
 
-      // Пример: через 3 секунды меняем текст и цвет
-      // (раскомментируйте, если хотите увидеть динамику)
-      /*
-      setTimeout(() => {
-        textSpan.textContent = 'СРОЧНО';
-        btn.style.setProperty('--bg-color', '#e5456a');
-      }, 3000);
-      */
+  <div class="acts" style="margin-top:12px;">
+    <input type="file" id="fi" accept="image/*">
+    <label for="fi" class="btn u"><i data-lucide="upload"></i>Загрузить фон</label>
+    <button id="sh" class="btn sh"><i data-lucide="share-2"></i>Поделиться</button>
+    <button id="dl" class="btn d" disabled><i data-lucide="download"></i>Скачать</button>
+    <button id="rs" class="btn r"><i data-lucide="rotate-ccw"></i>Сбросить</button>
+  </div>
+</div>
 
-      // Ручное управление — можно раскомментировать для интерактивности:
-      // btn.addEventListener('click', () => {
-      //   const texts = ['NEWS', 'СРОЧНО', 'ЭКСКЛЮЗИВ', 'ГЛАВНОЕ'];
-      //   const colors = ['#dc143c', '#e5456a', '#2e88f7', '#13d679', '#7c5cff'];
-      //   const i = Math.floor(Math.random() * texts.length);
-      //   textSpan.textContent = texts[i];
-      //   btn.style.setProperty('--bg-color', colors[Math.floor(Math.random() * colors.length)]);
-      // });
-    })();
-  </script>
+<script>
+lucide.createIcons();
+const $=id=>document.getElementById(id);
+const wrap=$('wrap'), cvEl=$('cv');
+const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
+const ci=$('ci'),hx=$('hx'),sw=$('sw');
+const cbIn1=$('cbIn1');
+const badgeText=$('badgeText'), badgeCi=$('badgeCi'), badgeHx=$('badgeHx'), badgeSw=$('badgeSw');
 
-  <!-- 
-    ПРИМЕЧАНИЕ:
-    В родительском коде (из вашего вопроса) кнопка "NEWS" находится 
-    в правом нижнем углу баннера, который рисуется на canvas.
-    Эта HTML/CSS-кнопка — отдельный элемент, который можно использовать 
-    как замену или как оверлей поверх canvas, если нужно менять текст 
-    и цвет без перерисовки холста.
+const DESIGN = 1000;
+const EXPORT_SIZE = 2048;
+const FONT_BASE = 16;
 
-    Чтобы интегрировать в основной проект:
-    1. Добавьте .news-button (и его стили) в <style> основной страницы.
-    2. Разместите <button class="news-button">...</button> внутри .wrap 
-       (или поверх него) с position: absolute; right: 10px; bottom: 10px; z-index: 10.
-    3. Меняйте textContent и style.setProperty('--bg-color', '#...') 
-       через JS — как показано выше.
-  -->
+const BANNER_FIXED = {
+  borderBottom: 2 * (25/16), bottomHeight: 36 * (25/16), redPadH: 20 * (25/16), redGap: 10 * (25/16),
+  logoFirstH: 22 * (25/16), logoSmallH: 16 * (25/16), logoLinkH:  12 * (25/16), logoLastH:  22 * (25/16),
+  bgRed: '#dc143c', borderBottomColor: '#000',
+};
+const BANNER_TOP = {
+  borderTop: 2, topPadV: 16, topPadH: 19.2, mainFontPx: 28.8, lineHeight: 1.2,
+  bgTop: '#1a1c22', borderTopColor: '#4a5568', textColor: '#ffffff',
+  fontFamily: "'Oswald', Arial, sans-serif", fontWeight: 500,
+};
+
+const DEF = { font: 16, bg: '#111214' };
+
+const st = {
+  loaded: false, x: 50, y: 50, scale: 1, bw: 0, bh: 0, bg: '#111214', text: '', fontPx: 16,
+  sharpness: 0,
+  badgeText: 'NEWS',
+  badgeBg: '#9a5cf8'
+};
+let currentImg = null;
+
+// --- ЛОГИКА РЕЗКОСТИ ---
+const shInput = $('cc-sh');
+const shVal = $('cc-sh-v');
+
+function updateSharpen() {
+  st.sharpness = parseFloat(shInput.value);
+  shVal.textContent = st.sharpness + '%';
+  schedulePaint();
+}
+shInput.addEventListener('input', updateSharpen);
+
+function applySharpen(ctx, width, height, amount) {
+  if (amount <= 0) return;
+  const strength = amount / 100;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const w = width, h = height;
+  const output = new Uint8ClampedArray(data.length);
+  
+  const center = 1 + 4 * strength;
+  const edge = -strength;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
+        output[idx] = data[idx]; output[idx+1] = data[idx+1]; output[idx+2] = data[idx+2]; output[idx+3] = data[idx+3];
+        continue;
+      }
+      const left = (y * w + (x - 1)) * 4;
+      const right = (y * w + (x + 1)) * 4;
+      const top = ((y - 1) * w + x) * 4;
+      const bottom = ((y + 1) * w + x) * 4;
+
+      for (let c = 0; c < 3; c++) {
+        let val = data[idx + c] * center 
+                + data[left + c] * edge 
+                + data[right + c] * edge 
+                + data[top + c] * edge 
+                + data[bottom + c] * edge;
+        output[idx + c] = Math.max(0, Math.min(255, val));
+      }
+      output[idx + 3] = data[idx + 3];
+    }
+  }
+  imageData.data.set(output);
+  ctx.putImageData(imageData, 0, 0);
+}
+// -----------------------
+
+const BOTTOM_IMGS = [
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631164/gmxzyocecemgtxjrmmvu.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631073/nhcxkk1zwvz0kvbpsure.png",
+  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png"
+];
+const bottomImgs = BOTTOM_IMGS.map(() => null);
+let bottomImgsPromise = null;
+
+async function loadBottomImages(){
+  if(bottomImgsPromise) return bottomImgsPromise;
+  bottomImgsPromise = (async ()=>{
+    for (let i=0;i<BOTTOM_IMGS.length;i++){
+      if(bottomImgs[i] && bottomImgs[i].naturalWidth) continue;
+      const src = BOTTOM_IMGS[i];
+      try{
+        const resp = await fetch(src, {mode:'cors'});
+        if(!resp.ok) throw new Error('fetch failed');
+        const blob = await resp.blob();
+        const dataUrl = await new Promise(res=>{
+          const fr = new FileReader(); fr.onload = ()=>res(fr.result); fr.readAsDataURL(blob);
+        });
+        const im = new Image();
+        await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = dataUrl; });
+        try{ await im.decode?.(); }catch(e){}
+        bottomImgs[i] = im;
+      }catch(e){
+        try{
+          const im = new Image(); im.crossOrigin = 'anonymous';
+          await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = src; });
+          try{ await im.decode?.(); }catch(e){}
+          bottomImgs[i] = im;
+        }catch(e2){ console.warn('Не удалось загрузить логотип:', src); bottomImgs[i] = null; }
+      }
+    }
+  })();
+  return bottomImgsPromise;
+}
+
+const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
+function setBg(c,sync=true){
+  const h=normHex(c)||DEF.bg;
+  st.bg=h;
+  if(sync){ ci.value=h; hx.value=h.toUpperCase(); sw.style.background=h; }
+  schedulePaint();
+}
+sw.onclick=()=>ci.click();
+ci.oninput=e=>setBg(e.target.value);
+hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background=h;ci.value=h;schedulePaint();}};
+hx.onblur=()=>hx.value=st.bg.toUpperCase();
+
+function setBadgeBg(c,sync=true){
+  const h=normHex(c)||'#111214';
+  st.badgeBg=h;
+  if(sync){ badgeCi.value=h; badgeHx.value=h.toUpperCase(); badgeSw.style.background=h; }
+  schedulePaint();
+}
+badgeSw.onclick=()=>badgeCi.click();
+badgeCi.oninput=e=>setBadgeBg(e.target.value);
+badgeHx.oninput=e=>{const h=normHex(e.target.value);if(h){st.badgeBg=h;badgeSw.style.background=h;badgeCi.value=h;schedulePaint();}};
+badgeHx.onblur=()=>badgeHx.value=st.badgeBg.toUpperCase();
+badgeText.oninput=()=>{ st.badgeText=badgeText.value; schedulePaint(); };
+
+const pickBtn = $('pick');
+if('EyeDropper' in window){
+  pickBtn.onclick = async () => {
+    try{
+      const eyeDropper = new EyeDropper();
+      const result = await eyeDropper.open();
+      setBg(result.sRGBHex, true);
+    }catch(err){ if(err && err.name !== 'AbortError') console.warn(err); }
+  };
+}else{ pickBtn.style.display = 'none'; }
+
+function topMetrics(){
+  const f = st.fontPx / FONT_BASE;
+  return { f, borderTop: BANNER_TOP.borderTop * f, topPadV: BANNER_TOP.topPadV * f, topPadH: BANNER_TOP.topPadH * f, mainFontPx: BANNER_TOP.mainFontPx * f, lineHeight: BANNER_TOP.lineHeight };
+}
+
+function layoutText(ctx, text, maxWidth){
+  if(!text) return [];
+  ctx.save();
+  const lines = [];
+  const paragraphs = text.split('\n');
+  for(const para of paragraphs){
+    if(para === ''){ lines.push(''); continue; }
+    const words = para.split(/\s+/);
+    let line = '';
+    for(const word of words){
+      const test = line ? (line + ' ' + word) : word;
+      if(ctx.measureText(test).width <= maxWidth || !line){ line = test; }
+      else{ lines.push(line); line = word; }
+    }
+    if(line) lines.push(line);
+  }
+  ctx.restore();
+  return lines;
+}
+
+async function paint(canvas, S){
+  const c = canvas.getContext('2d', {alpha:false});
+  const k = S / DESIGN;
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+
+  c.fillStyle = st.bg; 
+  c.fillRect(0, 0, S, S);
+
+  if(st.loaded && currentImg && currentImg.naturalWidth){
+    const ratio = st.bw / st.bh;
+    let fwD, fhD;
+    if(ratio >= 1){ fwD = DESIGN; fhD = DESIGN / ratio; }
+    else          { fhD = DESIGN; fwD = DESIGN * ratio; }
+    const w = fwD * st.scale * k;
+    const h = fhD * st.scale * k;
+    const cx = st.x / 100 * S;
+    const cy = st.y / 100 * S;
+    
+    c.save();
+    c.beginPath(); 
+    c.rect(0, 0, S, S); 
+    c.clip();
+    
+    try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); } 
+    catch(e){ console.warn('drawImage main failed', e); }
+
+    if (st.sharpness > 0) {
+      const rx = Math.max(0, Math.floor(cx - w/2));
+      const ry = Math.max(0, Math.floor(cy - h/2));
+      const rw = Math.min(S - rx, Math.ceil(w));
+      const rh = Math.min(S - ry, Math.ceil(h));
+      
+      if (rw > 0 && rh > 0) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = rw; tempCanvas.height = rh;
+        const tCtx = tempCanvas.getContext('2d');
+        tCtx.drawImage(canvas, rx, ry, rw, rh, 0, 0, rw, rh);
+        applySharpen(tCtx, rw, rh, st.sharpness);
+        c.drawImage(tempCanvas, rx, ry);
+      }
+    }
+    
+    c.restore();
+  }
+
+  const tm = topMetrics();
+  const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
+  const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
+  const logoFirstH = BANNER_FIXED.logoFirstH * k, logoSmallH = BANNER_FIXED.logoSmallH * k, logoLinkH = BANNER_FIXED.logoLinkH * k, logoLastH = BANNER_FIXED.logoLastH * k;
+
+  c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
+  const lines = layoutText(c, st.text, S - topPadH * 2);
+  const textBlockH = Math.max(1, lines.length) * lineHeightPx;
+  const topPartH = topPadV * 2 + textBlockH;
+  const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
+  const bannerY = S - bannerH;
+
+  c.fillStyle = BANNER_TOP.borderTopColor; c.fillRect(0, bannerY, S, borderTop);
+  const topPartY = bannerY + borderTop;
+  c.fillStyle = BANNER_TOP.bgTop; c.fillRect(0, topPartY, S, topPartH);
+
+  if(lines.length && st.text){
+    c.save();
+    c.fillStyle = BANNER_TOP.textColor; c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
+    const firstLineCenterY = topPartY + topPadV + lineHeightPx / 2;
+    for(let i=0;i<lines.length;i++){ c.fillText(lines[i], topPadH, firstLineCenterY + i * lineHeightPx); }
+    c.restore();
+  }
+
+  c.fillStyle = BANNER_FIXED.borderBottomColor; c.fillRect(0, topPartY + topPartH, S, borderBottom);
+  const redY = topPartY + topPartH + borderBottom;
+  c.fillStyle = BANNER_FIXED.bgRed; c.fillRect(0, redY, S, bottomHeight);
+
+  const midY = redY + bottomHeight / 2;
+  const heights = [logoFirstH, logoSmallH, logoSmallH, logoLinkH];
+  let xPos = redPadH;
+
+  // Первые четыре логотипа остаются без изменений.
+  for(let i=0;i<heights.length;i++){
+    const src = bottomImgs[i];
+    if(!src || !src.naturalWidth || !src.naturalHeight) continue;
+    const h = heights[i];
+    const w = src.naturalWidth * (h / src.naturalHeight);
+    try{ c.drawImage(src, xPos, midY - h/2, w, h); } catch(e){ console.warn('drawImage logo failed', i, e); }
+    xPos += w + redGap;
+  }
+
+  // Правая нижняя плашка вместо статичной NEWS.
+  // Размер исходной NEWS-картинки используется как минимальный референс,
+  // а ширина автоматически увеличивается под введенный текст.
+  {
+    const ref = bottomImgs[4];
+    const h = logoLastH;
+    const refW = (ref && ref.naturalWidth && ref.naturalHeight)
+      ? ref.naturalWidth * (h / ref.naturalHeight)
+      : h * 2.6;
+
+    const label = String(st.badgeText || '').trim();
+    const fontPx = h * 0.62;
+    const padX = h * 0.36;
+
+    c.save();
+    c.font = `700 ${fontPx}px ${BANNER_TOP.fontFamily}`;
+    const measured = label ? c.measureText(label).width : 0;
+    const maxW = S * 0.34;
+    const w = Math.min(maxW, Math.max(refW, measured + padX * 2));
+    const x = S - redPadH - w;
+    const y = midY - h/2;
+    const r = Math.min(h * 0.18, 8 * k);
+
+    c.fillStyle = st.badgeBg;
+    c.beginPath();
+    if(c.roundRect){
+      c.roundRect(x, y, w, h, r);
+    }else{
+      c.rect(x, y, w, h);
+    }
+    c.fill();
+
+    if(label){
+      // Если текст слишком длинный — уменьшаем шрифт, чтобы он не обрезался.
+      let actualFont = fontPx;
+      const available = Math.max(1, w - padX * 2);
+      if(measured > available) actualFont = fontPx * (available / measured);
+      c.fillStyle = '#ffffff';
+      c.font = `700 ${actualFont}px ${BANNER_TOP.fontFamily}`;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(label, x + w/2, midY + actualFont * 0.02);
+    }
+    c.restore();
+  }
+}
+
+let paintScheduled = false;
+function schedulePaint(){
+  if(paintScheduled) return;
+  paintScheduled = true;
+  requestAnimationFrame(async ()=>{ paintScheduled = false; await renderPreview(); });
+}
+
+let previewRendering = false;
+async function renderPreview(){
+  if(previewRendering) return;
+  previewRendering = true;
+  try{
+    await ensureReady();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const rect = wrap.getBoundingClientRect();
+    const cssSize = Math.max(1, Math.round(rect.width));
+    const px = Math.round(cssSize * dpr);
+    if(cvEl.width !== px || cvEl.height !== px){ cvEl.width = px; cvEl.height = px; }
+    await paint(cvEl, px);
+  } finally { previewRendering = false; }
+}
+
+let readyPromise = null;
+function ensureReady(){
+  if(readyPromise) return readyPromise;
+  readyPromise = (async ()=>{
+    try{
+      if(document.fonts){
+        await Promise.all([ document.fonts.load(`500 32px Oswald`), document.fonts.load(`700 32px Oswald`) ]);
+        await document.fonts.ready;
+      }
+    }catch(e){}
+    try{ await loadBottomImages(); }catch(e){}
+  })();
+  return readyPromise;
+}
+
+function setFont(p){
+  const v = Math.max(6, Math.min(96, parseFloat(p) || FONT_BASE));
+  st.fontPx = v; fs.value = v; fsV.textContent = v.toFixed(1) + 'px'; schedulePaint();
+}
+fs.oninput = e => setFont(e.target.value);
+fsV.onclick = () => setFont(DEF.font);
+
+function setScale(s){
+  st.scale = Math.min(4, Math.max(.05, s));
+  sc.value = (st.scale * 100).toFixed(1); scV.textContent = (st.scale * 100).toFixed(1) + '%'; schedulePaint();
+}
+sc.oninput = e => setScale(parseFloat(e.target.value) / 100);
+scV.onclick = () => setScale(1);
+
+cbIn1.oninput = () => { st.text = cbIn1.value; schedulePaint(); };
+
+document.querySelectorAll('.ib').forEach(b=>{
+  b.onclick = ()=>{
+    const t = b.dataset.t, s = parseFloat(b.dataset.s);
+    if(t === 'sc') setScale(st.scale + s/100); else setFont(st.fontPx + s);
+  };
+});
+
+function loadFile(f){
+  if(!f || !f.type.startsWith('image/')) return;
+  const rd = new FileReader();
+  rd.onload = e => {
+    const im = new Image();
+    im.onload = async () => {
+      try{ await im.decode?.(); }catch(err){}
+      currentImg = im; st.bw = im.naturalWidth; st.bh = im.naturalHeight; st.loaded = true;
+      st.x = 50; st.y = 50; st.scale = 1; sc.value = 100; scV.textContent = '100.0%';
+      wrap.classList.remove('empty'); $('dl').disabled = false; schedulePaint();
+    };
+    im.src = e.target.result;
+  };
+  rd.readAsDataURL(f);
+}
+$('fi').onchange = e => loadFile(e.target.files[0]);
+wrap.onclick = () => { if(!st.loaded) $('fi').click(); };
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+
+let drag = null;
+function down(x,y){ if(!st.loaded) return; drag = {px:x, py:y, x:st.x, y:st.y}; wrap.classList.add('drag'); }
+function move(x,y){
+  if(!drag) return;
+  const rect = wrap.getBoundingClientRect(); const w = rect.width || 1;
+  st.x = drag.x + (x - drag.px) / w * 100; st.y = drag.y + (y - drag.py) / w * 100; schedulePaint();
+}
+function up(){ drag = null; wrap.classList.remove('drag'); }
+wrap.addEventListener('mousedown', e => { if(e.button!==0) return; e.preventDefault(); down(e.clientX,e.clientY); });
+addEventListener('mousemove', e => move(e.clientX,e.clientY));
+addEventListener('mouseup', up);
+
+let pinch = null;
+const td = t => Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+wrap.addEventListener('touchstart', e=>{
+  if(e.touches.length===1) down(e.touches[0].clientX, e.touches[0].clientY);
+  else if(e.touches.length===2) pinch = {d:td(e.touches), s:st.scale};
+},{passive:true});
+wrap.addEventListener('touchmove', e=>{
+  if(e.touches.length===1 && drag){ e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
+  else if(e.touches.length===2 && pinch){ e.preventDefault(); setScale(pinch.s * td(e.touches)/pinch.d); }
+},{passive:false});
+wrap.addEventListener('touchend', e=>{
+  if(e.touches.length===0){ up(); pinch=null; }
+  else if(e.touches.length===1 && pinch){ pinch=null; down(e.touches[0].clientX, e.touches[0].clientY); }
+});
+wrap.addEventListener('wheel', e=>{ if(!st.loaded) return; e.preventDefault(); setScale(st.scale * (1 - e.deltaY * .0015)); },{passive:false});
+
+addEventListener('resize', () => { renderPreview(); });
+
+let exportBusy = false;
+async function renderExportCanvas(){
+  await ensureReady();
+  const cv = document.createElement('canvas');
+  cv.width = EXPORT_SIZE; cv.height = EXPORT_SIZE;
+  await paint(cv, EXPORT_SIZE);
+  return cv;
+}
+
+async function downloadCanvas(){
+  if(exportBusy || !st.loaded) return;
+  exportBusy = true;
+  const btn = $('dl'); const oldHTML = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-circle"></i>Сохранение…'; lucide.createIcons();
+  try{
+    const cv = await renderExportCanvas();
+    const blob = await new Promise((resolve,reject)=>{ cv.toBlob(b => b ? resolve(b) : reject(new Error('PNG не создан')), 'image/png', 1); });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'canvas.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  }catch(err){ console.error('Ошибка сохранения:', err); alert('Не удалось сохранить.'); }
+  finally{
+    exportBusy = false; btn.disabled = !st.loaded; btn.innerHTML = oldHTML; lucide.createIcons();
+  }
+}
+$('dl').onclick = downloadCanvas;
+
+async function shareProject(){
+  try{
+    const payload = { x: st.x, y: st.y, scale: st.scale, bg: st.bg, text: st.text, font: st.fontPx, sharpness: st.sharpness, badgeText: st.badgeText, badgeBg: st.badgeBg, img: st.loaded && currentImg ? currentImg.src : null };
+    const cv = await renderExportCanvas();
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const file = new File([blob], 'canvas.png', {type:'image/png'});
+    if (navigator.canShare && navigator.canShare({files:[file]})) {
+      await navigator.share({ files:[file], title:'Холст', text:'Моя картинка' }); return;
+    }
+    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+    const url = location.origin + location.pathname + '?state=' + encoded;
+    if (navigator.share) { await navigator.share({ title:'Холст', text:'Открой мою картинку', url }); }
+    else {
+      await navigator.clipboard.writeText(url);
+      const btn = $('sh'); const old = btn.innerHTML;
+      btn.innerHTML = '<i data-lucide="check"></i>Скопировано'; lucide.createIcons();
+      setTimeout(()=>{ btn.innerHTML = old; lucide.createIcons(); }, 1800);
+    }
+  }catch(e){ if(e.name !== 'AbortError') console.error(e); }
+}
+$('sh').onclick = shareProject;
+
+(async function restoreFromURL(){
+  const params = new URLSearchParams(location.search);
+  const raw = params.get('state');
+  if(!raw) return;
+  try{
+    const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
+    if(p.bg) setBg(p.bg, true);
+    if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
+    if(p.font) setFont(p.font);
+    if(p.sharpness != null) { shInput.value = p.sharpness; updateSharpen(); }
+    if(p.badgeText != null){ badgeText.value = p.badgeText; st.badgeText = p.badgeText; }
+    if(p.badgeBg) setBadgeBg(p.badgeBg, true);
+
+    if(p.img){
+      await new Promise((res)=>{
+        const im = new Image();
+        im.onload = async ()=>{
+          try{ await im.decode?.(); }catch(e){}
+          currentImg = im; st.bw = im.naturalWidth; st.bh = im.naturalHeight; st.loaded = true;
+          wrap.classList.remove('empty'); $('dl').disabled = false;
+          st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
+          sc.value = (st.scale * 100).toFixed(1); scV.textContent = (st.scale * 100).toFixed(1) + '%';
+          schedulePaint(); res();
+        };
+        im.onerror = res; im.src = p.img;
+      });
+    }
+  }catch(err){ console.warn('Не удалось восстановить состояние', err); }
+})();
+
+$('rs').onclick = () => {
+  st.loaded = false; st.x = 50; st.y = 50; st.scale = 1; currentImg = null;
+  wrap.classList.add('empty'); $('fi').value = ''; $('dl').disabled = true;
+  sc.value = 100; scV.textContent = '100.0%'; cbIn1.value = ''; st.text = '';
+  setFont(DEF.font); setBg(DEF.bg, true);
+  
+  st.sharpness = 0;
+  shInput.value = 0;
+  shVal.textContent = '0%';
+
+  st.badgeText = 'NEWS';
+  badgeText.value = 'NEWS';
+  setBadgeBg('#111214', true);
+
+  schedulePaint();
+};
+
+setFont(DEF.font); setBg(DEF.bg, true); setBadgeBg('#111214', true);
+ensureReady().then(() => renderPreview());
+</script>
 </body>
 </html>
