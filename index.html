@@ -132,15 +132,6 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     <input type="text" id="badgeText" value="NEWS" placeholder="Текст правой нижней плашки" maxlength="24">
   </div>
 
-  <div class="ctl badge-color-ctl"><div class="row">
-    <span class="badge-color-label">Плашка справа</span>
-    <div class="pw">
-      <button class="sw" id="badgeSw" title="Цвет правой нижней плашки"></button>
-      <input type="color" id="badgeCi" value="#9a5cf8" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0">
-      <input class="hex" id="badgeHx" value="#9a5cf8" maxlength="7" spellcheck="false">
-    </div>
-  </div></div>
-
   <div class="acts" style="margin-top:12px;">
     <input type="file" id="fi" accept="image/*">
     <label for="fi" class="btn u"><i data-lucide="upload"></i>Загрузить фон</label>
@@ -157,7 +148,7 @@ const wrap=$('wrap'), cvEl=$('cv');
 const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
 const ci=$('ci'),hx=$('hx'),sw=$('sw');
 const cbIn1=$('cbIn1');
-const badgeText=$('badgeText'), badgeCi=$('badgeCi'), badgeHx=$('badgeHx'), badgeSw=$('badgeSw');
+const badgeText=$('badgeText');
 
 const DESIGN = 1000;
 const EXPORT_SIZE = 2048;
@@ -179,8 +170,7 @@ const DEF = { font: 16, bg: '#111214' };
 const st = {
   loaded: false, x: 50, y: 50, scale: 1, bw: 0, bh: 0, bg: '#111214', text: '', fontPx: 16,
   sharpness: 0,
-  badgeText: 'NEWS',
-  badgeBg: '#9a5cf8'
+  badgeText: 'NEWS'
 };
 let currentImg = null;
 
@@ -286,16 +276,6 @@ ci.oninput=e=>setBg(e.target.value);
 hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background=h;ci.value=h;schedulePaint();}};
 hx.onblur=()=>hx.value=st.bg.toUpperCase();
 
-function setBadgeBg(c,sync=true){
-  const h=normHex(c)||'#9a5cf8';
-  st.badgeBg=h;
-  if(sync){ badgeCi.value=h; badgeHx.value=h.toUpperCase(); badgeSw.style.background=h; }
-  schedulePaint();
-}
-badgeSw.onclick=()=>badgeCi.click();
-badgeCi.oninput=e=>setBadgeBg(e.target.value);
-badgeHx.oninput=e=>{const h=normHex(e.target.value);if(h){st.badgeBg=h;badgeSw.style.background=h;badgeCi.value=h;schedulePaint();}};
-badgeHx.onblur=()=>badgeHx.value=st.badgeBg.toUpperCase();
 badgeText.oninput=()=>{ st.badgeText=badgeText.value; schedulePaint(); };
 
 const pickBtn = $('pick');
@@ -397,11 +377,9 @@ async function paint(canvas, S){
   c.fillStyle = BANNER_TOP.bgTop; c.fillRect(0, topPartY, S, topPartH);
 
   // === БЕЛЫЕ ЛИНИИ СВЕРХУ И СНИЗУ ПОДЛОЖКИ ТЕКСТА ===
-  const whiteLineThickness = 2 * k; // толщина белой линии, масштабируется
-  // Линия сверху подложки (на границе между верхней обводкой и фоном текста)
+  const whiteLineThickness = 2 * k;
   c.fillStyle = '#ffffff';
   c.fillRect(0, topPartY - whiteLineThickness, S, whiteLineThickness);
-  // Линия снизу подложки (на границе между фоном текста и нижней обводкой)
   c.fillRect(0, topPartY + topPartH, S, whiteLineThickness);
   // ======================================================
 
@@ -432,9 +410,7 @@ async function paint(canvas, S){
     xPos += w + redGap;
   }
 
-  // Правая нижняя плашка вместо статичной NEWS.
-  // Размер исходной NEWS-картинки используется как минимальный референс,
-  // а ширина автоматически увеличивается под введенный текст.
+  // Правая нижняя плашка с надписью (белая подложка, чёрный текст).
   {
     const ref = bottomImgs[4];
     const h = logoLastH;
@@ -455,7 +431,8 @@ async function paint(canvas, S){
     const y = midY - h/2;
     const r = Math.min(h * 0.18, 8 * k);
 
-    c.fillStyle = st.badgeBg;
+    // Белая подложка
+    c.fillStyle = '#ffffff';
     c.beginPath();
     if(c.roundRect){
       c.roundRect(x, y, w, h, r);
@@ -465,11 +442,11 @@ async function paint(canvas, S){
     c.fill();
 
     if(label){
-      // Если текст слишком длинный — уменьшаем шрифт, чтобы он не обрезался.
       let actualFont = fontPx;
       const available = Math.max(1, w - padX * 2);
       if(measured > available) actualFont = fontPx * (available / measured);
-      c.fillStyle = '#ffffff';
+      // Чёрный текст
+      c.fillStyle = '#000000';
       c.font = `700 ${actualFont}px ${BANNER_TOP.fontFamily}`;
       c.textAlign = 'center';
       c.textBaseline = 'middle';
@@ -619,7 +596,7 @@ $('dl').onclick = downloadCanvas;
 
 async function shareProject(){
   try{
-    const payload = { x: st.x, y: st.y, scale: st.scale, bg: st.bg, text: st.text, font: st.fontPx, sharpness: st.sharpness, badgeText: st.badgeText, badgeBg: st.badgeBg, img: st.loaded && currentImg ? currentImg.src : null };
+    const payload = { x: st.x, y: st.y, scale: st.scale, bg: st.bg, text: st.text, font: st.fontPx, sharpness: st.sharpness, badgeText: st.badgeText, img: st.loaded && currentImg ? currentImg.src : null };
     const cv = await renderExportCanvas();
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     const file = new File([blob], 'canvas.png', {type:'image/png'});
@@ -650,7 +627,6 @@ $('sh').onclick = shareProject;
     if(p.font) setFont(p.font);
     if(p.sharpness != null) { shInput.value = p.sharpness; updateSharpen(); }
     if(p.badgeText != null){ badgeText.value = p.badgeText; st.badgeText = p.badgeText; }
-    if(p.badgeBg) setBadgeBg(p.badgeBg, true);
 
     if(p.img){
       await new Promise((res)=>{
@@ -681,12 +657,11 @@ $('rs').onclick = () => {
 
   st.badgeText = 'NEWS';
   badgeText.value = 'NEWS';
-  setBadgeBg('#9a5cf8', true);
 
   schedulePaint();
 };
 
-setFont(DEF.font); setBg(DEF.bg, true); setBadgeBg('#9a5cf8', true);
+setFont(DEF.font); setBg(DEF.bg, true);
 ensureReady().then(() => renderPreview());
 </script>
 </body>
