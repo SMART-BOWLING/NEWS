@@ -13,9 +13,9 @@ html,body{margin:0;height:100%;font:14px -apple-system,Segoe UI,Roboto,Arial,san
 body{display:flex;flex-direction:column;height:100vh}
 
 .panel { max-height: 45vh; overflow-y: auto; }
-.color-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; width: 100%; flex: 1 1 100%; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--bd); }
-.color-grid .ctl { padding: 4px 8px; flex: none; }
-.color-grid .val { min-width: 40px; font-size: 10px; }
+.color-grid { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; flex: 1 1 100%; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--bd); justify-content: center; }
+.color-grid .ctl { padding: 6px 10px; flex: 0 1 300px; }
+.color-grid .val { min-width: 45px; font-size: 11px; }
 
 .stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:24px;background:#1a1b1e}
 .wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none}
@@ -97,40 +97,15 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     <input type="text" id="cbIn1" placeholder="Текст темной плашки">
   </div>
 
-  <!-- БЛОК ЦВЕТОКОРА -->
+  <!-- БЛОК РЕЗКОСТИ -->
   <div class="color-grid">
     <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:25px;color:var(--mu)">Ярк</span>
-      <input type="range" id="cc-br" min="50" max="150" value="100">
-      <span class="val" id="cc-br-v">100%</span>
-    </div></div>
-    <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:25px;color:var(--mu)">Контр</span>
-      <input type="range" id="cc-co" min="50" max="200" value="100">
-      <span class="val" id="cc-co-v">100%</span>
-    </div></div>
-    <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:25px;color:var(--mu)">Насыщ</span>
-      <input type="range" id="cc-sa" min="0" max="200" value="100">
-      <span class="val" id="cc-sa-v">100%</span>
-    </div></div>
-    <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:25px;color:var(--mu)">Тон</span>
-      <input type="range" id="cc-hu" min="0" max="360" value="0">
-      <span class="val" id="cc-hu-v">0°</span>
-    </div></div>
-    <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:25px;color:var(--mu)">Резк</span>
+      <span style="font-size:11px;width:40px;color:var(--tx)">Резкость</span>
       <input type="range" id="cc-sh" min="0" max="300" value="0">
       <span class="val" id="cc-sh-v">0%</span>
     </div></div>
-    <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:25px;color:var(--mu)">Блюр</span>
-      <input type="range" id="cc-bl" min="0" max="10" value="0" step="0.1">
-      <span class="val" id="cc-bl-v">0px</span>
-    </div></div>
   </div>
-  <!-- // БЛОК ЦВЕТОКОРА -->
+  <!-- // БЛОК РЕЗКОСТИ -->
 
   <div class="acts" style="margin-top:12px;">
     <input type="file" id="fi" accept="image/*">
@@ -168,37 +143,20 @@ const DEF = { font: 16, bg: '#111214' };
 
 const st = {
   loaded: false, x: 50, y: 50, scale: 1, bw: 0, bh: 0, bg: '#111214', text: '', fontPx: 16,
-  color: { brightness: 100, contrast: 100, saturate: 100, hue: 0, sharpness: 0, blur: 0 }
+  sharpness: 0 // Оставили только резкость
 };
 let currentImg = null;
 
-// --- ЦВЕТОКОР ЛОГИКА ---
-const ccEls = {
-  brightness: {in: $('cc-br'), out: $('cc-br-v'), suf: '%'},
-  contrast:   {in: $('cc-co'), out: $('cc-co-v'), suf: '%'},
-  saturate:   {in: $('cc-sa'), out: $('cc-sa-v'), suf: '%'},
-  hue:        {in: $('cc-hu'), out: $('cc-hu-v'), suf: '°'},
-  sharpness:  {in: $('cc-sh'), out: $('cc-sh-v'), suf: '%'},
-  blur:       {in: $('cc-bl'), out: $('cc-bl-v'), suf: 'px'}
-};
+// --- ЛОГИКА РЕЗКОСТИ ---
+const shInput = $('cc-sh');
+const shVal = $('cc-sh-v');
 
-function updateColorControls() {
-  Object.keys(ccEls).forEach(key => {
-    const el = ccEls[key];
-    el.in.value = st.color[key];
-    el.out.textContent = st.color[key] + el.suf;
-  });
+function updateSharpen() {
+  st.sharpness = parseFloat(shInput.value);
+  shVal.textContent = st.sharpness + '%';
   schedulePaint();
 }
-
-Object.keys(ccEls).forEach(key => {
-  const el = ccEls[key];
-  el.in.addEventListener('input', (e) => {
-    st.color[key] = parseFloat(e.target.value);
-    el.out.textContent = st.color[key] + el.suf;
-    schedulePaint();
-  });
-});
+shInput.addEventListener('input', updateSharpen);
 
 // Функция резкости (Unsharp Mask)
 function applySharpen(ctx, width, height, amount) {
@@ -208,12 +166,15 @@ function applySharpen(ctx, width, height, amount) {
   const data = imageData.data;
   const w = width, h = height;
   const output = new Uint8ClampedArray(data.length);
+  
+  // Коэффициенты для резкости
   const center = 1 + 4 * strength;
   const edge = -strength;
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
+      // Края оставляем без изменений
       if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
         output[idx] = data[idx]; output[idx+1] = data[idx+1]; output[idx+2] = data[idx+2]; output[idx+3] = data[idx+3];
         continue;
@@ -224,11 +185,13 @@ function applySharpen(ctx, width, height, amount) {
       const bottom = ((y + 1) * w + x) * 4;
 
       for (let c = 0; c < 3; c++) {
+        // Формула резкости: центр * вес + соседи * (-вес)
         let val = data[idx + c] * center 
                 + data[left + c] * edge 
                 + data[right + c] * edge 
                 + data[top + c] * edge 
                 + data[bottom + c] * edge;
+        // Защита от пересвета/перетемнения
         output[idx + c] = Math.max(0, Math.min(255, val));
       }
       output[idx + 3] = data[idx + 3];
@@ -336,7 +299,7 @@ async function paint(canvas, S){
   c.fillStyle = st.bg; 
   c.fillRect(0, 0, S, S);
 
-  // 2. Основная картинка с фильтрами (ТОЛЬКО ДЛЯ НЕЁ)
+  // 2. Основная картинка + Резкость (ТОЛЬКО ДЛЯ НЕЁ)
   if(st.loaded && currentImg && currentImg.naturalWidth){
     const ratio = st.bw / st.bh;
     let fwD, fhD;
@@ -347,46 +310,33 @@ async function paint(canvas, S){
     const cx = st.x / 100 * S;
     const cy = st.y / 100 * S;
     
-    // Сохраняем контекст и делаем клиппинг
     c.save();
     c.beginPath(); 
     c.rect(0, 0, S, S); 
     c.clip();
     
-    const cCol = st.color;
-    
-    // ВАЖНО: Применяем фильтры Canvas 2D API к контексту. 
-    // Они будут применены ТОЛЬКО к drawImage ниже.
-    c.filter = `brightness(${cCol.brightness}%) contrast(${cCol.contrast}%) saturate(${cCol.saturate}%) hue-rotate(${cCol.hue}deg) blur(${cCol.blur}px)`;
-    
-    try{ 
-      c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); 
-    } catch(e){ 
-      console.warn('drawImage main failed', e); 
-    }
-    
-    // Сбрасываем фильтр
-    c.filter = 'none';
+    // Рисуем картинку
+    try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); } 
+    catch(e){ console.warn('drawImage main failed', e); }
 
-    // 3. Резкость (применяется только к области картинки)
-    if (cCol.sharpness > 0) {
-      // Вычисляем видимую область картинки (чтобы не обрабатывать пустые пиксели)
+    // Применяем резкость к области картинки
+    if (st.sharpness > 0) {
       const rx = Math.max(0, Math.floor(cx - w/2));
       const ry = Math.max(0, Math.floor(cy - h/2));
       const rw = Math.min(S - rx, Math.ceil(w));
       const rh = Math.min(S - ry, Math.ceil(h));
       
       if (rw > 0 && rh > 0) {
-        // Копируем только видимую часть картинки на временный холст
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = rw; tempCanvas.height = rh;
         const tCtx = tempCanvas.getContext('2d');
+        // Копируем видимую область картинки на временный холст
         tCtx.drawImage(canvas, rx, ry, rw, rh, 0, 0, rw, rh);
         
         // Применяем резкость
-        applySharpen(tCtx, rw, rh, cCol.sharpness);
+        applySharpen(tCtx, rw, rh, st.sharpness);
         
-        // Возвращаем обратно на основной холст
+        // Возвращаем обратно
         c.drawImage(tempCanvas, rx, ry);
       }
     }
@@ -394,7 +344,7 @@ async function paint(canvas, S){
     c.restore();
   }
 
-  // 4. Отрисовка плашек (идет БЕЗ фильтров, так как c.filter = 'none' и c.restore())
+  // 3. Отрисовка плашек и логотипов (БЕЗ РЕЗКОСТИ)
   const tm = topMetrics();
   const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
   const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
@@ -579,7 +529,7 @@ $('dl').onclick = downloadCanvas;
 
 async function shareProject(){
   try{
-    const payload = { x: st.x, y: st.y, scale: st.scale, bg: st.bg, text: st.text, font: st.fontPx, color: st.color, img: st.loaded && currentImg ? currentImg.src : null };
+    const payload = { x: st.x, y: st.y, scale: st.scale, bg: st.bg, text: st.text, font: st.fontPx, sharpness: st.sharpness, img: st.loaded && currentImg ? currentImg.src : null };
     const cv = await renderExportCanvas();
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     const file = new File([blob], 'canvas.png', {type:'image/png'});
@@ -608,7 +558,7 @@ $('sh').onclick = shareProject;
     if(p.bg) setBg(p.bg, true);
     if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
     if(p.font) setFont(p.font);
-    if(p.color) { st.color = {...st.color, ...p.color}; updateColorControls(); }
+    if(p.sharpness != null) { shInput.value = p.sharpness; updateSharpen(); }
 
     if(p.img){
       await new Promise((res)=>{
@@ -633,11 +583,13 @@ $('rs').onclick = () => {
   sc.value = 100; scV.textContent = '100.0%'; cbIn1.value = ''; st.text = '';
   setFont(DEF.font); setBg(DEF.bg, true);
   
-  st.color = { brightness: 100, contrast: 100, saturate: 100, hue: 0, sharpness: 0, blur: 0 };
-  updateColorControls();
+  st.sharpness = 0;
+  shInput.value = 0;
+  shVal.textContent = '0%';
+  schedulePaint();
 };
 
-setFont(DEF.font); setBg(DEF.bg, true); updateColorControls();
+setFont(DEF.font); setBg(DEF.bg, true);
 ensureReady().then(() => renderPreview());
 </script>
 </body>
