@@ -13,9 +13,6 @@ html,body{margin:0;height:100%;font:14px -apple-system,Segoe UI,Roboto,Arial,san
 body{display:flex;flex-direction:column;height:100vh}
 
 .panel { max-height: 45vh; overflow-y: auto; }
-.color-grid { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; flex: 1 1 100%; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--bd); justify-content: center; }
-.color-grid .ctl { padding: 6px 10px; flex: 0 1 300px; }
-.color-grid .val { min-width: 45px; font-size: 11px; }
 
 .stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:24px;background:#1a1b1e}
 .wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none}
@@ -84,6 +81,7 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     <span class="val" id="fsV">16.0px</span>
   </div></div>
 
+  <!-- Выбор цвета фона -->
   <div class="ctl bg"><div class="row">
     <div class="pw">
       <button class="sw" id="sw" title="Цвет фона"></button>
@@ -93,19 +91,17 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     </div>
   </div></div>
 
+  <!-- НОВЫЙ БЛОК: Резкость (встроена в общий ряд) -->
+  <div class="ctl"><div class="row">
+    <span style="font-size:10px;width:35px;color:var(--mu);text-align:center">Резк</span>
+    <input type="range" id="cc-sh" min="0" max="300" value="0">
+    <span class="val" id="cc-sh-v">0%</span>
+  </div></div>
+  <!-- // НОВЫЙ БЛОК -->
+
   <div class="combo-inputs">
     <input type="text" id="cbIn1" placeholder="Текст темной плашки">
   </div>
-
-  <!-- БЛОК РЕЗКОСТИ -->
-  <div class="color-grid">
-    <div class="ctl"><div class="row">
-      <span style="font-size:11px;width:40px;color:var(--tx)">Резкость</span>
-      <input type="range" id="cc-sh" min="0" max="300" value="0">
-      <span class="val" id="cc-sh-v">0%</span>
-    </div></div>
-  </div>
-  <!-- // БЛОК РЕЗКОСТИ -->
 
   <div class="acts" style="margin-top:12px;">
     <input type="file" id="fi" accept="image/*">
@@ -143,7 +139,7 @@ const DEF = { font: 16, bg: '#111214' };
 
 const st = {
   loaded: false, x: 50, y: 50, scale: 1, bw: 0, bh: 0, bg: '#111214', text: '', fontPx: 16,
-  sharpness: 0 // Оставили только резкость
+  sharpness: 0
 };
 let currentImg = null;
 
@@ -167,14 +163,12 @@ function applySharpen(ctx, width, height, amount) {
   const w = width, h = height;
   const output = new Uint8ClampedArray(data.length);
   
-  // Коэффициенты для резкости
   const center = 1 + 4 * strength;
   const edge = -strength;
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-      // Края оставляем без изменений
       if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
         output[idx] = data[idx]; output[idx+1] = data[idx+1]; output[idx+2] = data[idx+2]; output[idx+3] = data[idx+3];
         continue;
@@ -185,13 +179,11 @@ function applySharpen(ctx, width, height, amount) {
       const bottom = ((y + 1) * w + x) * 4;
 
       for (let c = 0; c < 3; c++) {
-        // Формула резкости: центр * вес + соседи * (-вес)
         let val = data[idx + c] * center 
                 + data[left + c] * edge 
                 + data[right + c] * edge 
                 + data[top + c] * edge 
                 + data[bottom + c] * edge;
-        // Защита от пересвета/перетемнения
         output[idx + c] = Math.max(0, Math.min(255, val));
       }
       output[idx + 3] = data[idx + 3];
@@ -299,7 +291,7 @@ async function paint(canvas, S){
   c.fillStyle = st.bg; 
   c.fillRect(0, 0, S, S);
 
-  // 2. Основная картинка + Резкость (ТОЛЬКО ДЛЯ НЕЁ)
+  // 2. Основная картинка + Резкость
   if(st.loaded && currentImg && currentImg.naturalWidth){
     const ratio = st.bw / st.bh;
     let fwD, fhD;
@@ -315,11 +307,9 @@ async function paint(canvas, S){
     c.rect(0, 0, S, S); 
     c.clip();
     
-    // Рисуем картинку
     try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); } 
     catch(e){ console.warn('drawImage main failed', e); }
 
-    // Применяем резкость к области картинки
     if (st.sharpness > 0) {
       const rx = Math.max(0, Math.floor(cx - w/2));
       const ry = Math.max(0, Math.floor(cy - h/2));
@@ -330,13 +320,8 @@ async function paint(canvas, S){
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = rw; tempCanvas.height = rh;
         const tCtx = tempCanvas.getContext('2d');
-        // Копируем видимую область картинки на временный холст
         tCtx.drawImage(canvas, rx, ry, rw, rh, 0, 0, rw, rh);
-        
-        // Применяем резкость
         applySharpen(tCtx, rw, rh, st.sharpness);
-        
-        // Возвращаем обратно
         c.drawImage(tempCanvas, rx, ry);
       }
     }
@@ -344,7 +329,7 @@ async function paint(canvas, S){
     c.restore();
   }
 
-  // 3. Отрисовка плашек и логотипов (БЕЗ РЕЗКОСТИ)
+  // 3. Плашки и логотипы
   const tm = topMetrics();
   const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
   const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
