@@ -66,6 +66,14 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 .badge-color-ctl{flex:0 1 240px;min-width:190px}
 .badge-color-label{font-size:11px;color:var(--mu);white-space:nowrap;margin-right:6px}
 
+/* Белые линии для подложки текста */
+.text-bg-white-border-top {
+  border-top: 2px solid #ffffff;
+}
+.text-bg-white-border-bottom {
+  border-bottom: 2px solid #ffffff;
+}
+
 @media(max-width:760px){
   .stage{padding:12px}
   .wrap{width:min(70vh,100%)}
@@ -383,9 +391,19 @@ async function paint(canvas, S){
   const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
   const bannerY = S - bannerH;
 
+  // Верхняя часть баннера (тёмная плашка с текстом)
   c.fillStyle = BANNER_TOP.borderTopColor; c.fillRect(0, bannerY, S, borderTop);
   const topPartY = bannerY + borderTop;
   c.fillStyle = BANNER_TOP.bgTop; c.fillRect(0, topPartY, S, topPartH);
+
+  // === БЕЛЫЕ ЛИНИИ СВЕРХУ И СНИЗУ ПОДЛОЖКИ ТЕКСТА ===
+  const whiteLineThickness = 2 * k; // толщина белой линии, масштабируется
+  // Линия сверху подложки (на границе между верхней обводкой и фоном текста)
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, topPartY - whiteLineThickness, S, whiteLineThickness);
+  // Линия снизу подложки (на границе между фоном текста и нижней обводкой)
+  c.fillRect(0, topPartY + topPartH, S, whiteLineThickness);
+  // ======================================================
 
   if(lines.length && st.text){
     c.save();
