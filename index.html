@@ -28,13 +28,22 @@ body{display:flex;flex-direction:column;height:100vh}
 .panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
 .ctl{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;display:flex;align-items:center;flex:0 1 240px;min-width:190px}
 .row{display:flex;align-items:center;gap:6px;width:100%}
+
+/* ОБЩИЙ КОНТЕЙНЕР ДЛЯ ЦВЕТА И РЕЗКОСТИ */
+.bg-sharp-group {
+  display: flex;
+  flex: 2 1 500px; /* Занимает больше места, чем обычный контрол */
+  gap: 8px;
+  min-width: 0;
+}
+.bg-sharp-group .ctl { flex: 1 1 50%; min-width: 0; }
+
 .ib{width:24px;height:24px;padding:0;border:1px solid var(--bd);background:var(--s2);color:var(--tx);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .ib:hover{background:#3a3d44}
 .ib i{width:13px;height:13px}
 input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:var(--bl)}
 .val{min-width:56px;text-align:right;font-size:11px;color:var(--mu);cursor:pointer;border-radius:4px;padding:2px 4px}
 .val:hover{background:var(--s2);color:var(--tx)}
-.bg{flex:0 1 300px}
 .pw{position:relative;display:inline-flex;align-items:center;gap:8px;flex:1}
 .sw{width:28px;height:28px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;flex:0 0 auto;background:#111214}
 .hex{flex:1;min-width:0;background:none;border:none;color:var(--tx);font:12px ui-monospace,monospace;outline:none;padding:4px 2px;text-transform:uppercase}
@@ -55,7 +64,15 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
 }
 .combo-inputs input:focus{border-color:var(--bl)}
 
-@media(max-width:760px){.stage{padding:12px}.wrap{width:min(70vh,100%)}.panel{padding:8px 8px 16px;gap:6px}.ctl{flex:1 1 100%;min-width:0}.btn{flex:1 1 auto;justify-content:center}}
+@media(max-width:760px){
+  .stage{padding:12px}
+  .wrap{width:min(70vh,100%)}
+  .panel{padding:8px 8px 16px;gap:6px}
+  .ctl{flex:1 1 100%;min-width:0}
+  .bg-sharp-group { flex-direction: column; flex: 1 1 100%; }
+  .bg-sharp-group .ctl { flex: 1 1 100%; }
+  .btn{flex:1 1 auto;justify-content:center}
+}
 </style>
 </head>
 <body>
@@ -81,23 +98,24 @@ input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:v
     <span class="val" id="fsV">16.0px</span>
   </div></div>
 
-  <!-- Выбор цвета фона -->
-  <div class="ctl bg"><div class="row">
-    <div class="pw">
-      <button class="sw" id="sw" title="Цвет фона"></button>
-      <input type="color" id="ci" value="#111214">
-      <input class="hex" id="hx" value="#111214" maxlength="7" spellcheck="false">
-      <button class="ib" id="pick" title="Пипетка — выбрать цвет с экрана"><i data-lucide="pipette"></i></button>
-    </div>
-  </div></div>
+  <!-- ГРУППА: ЦВЕТ + РЕЗКОСТЬ В ОДНОЙ СТРОКЕ -->
+  <div class="bg-sharp-group">
+    <div class="ctl"><div class="row">
+      <div class="pw">
+        <button class="sw" id="sw" title="Цвет фона"></button>
+        <input type="color" id="ci" value="#111214">
+        <input class="hex" id="hx" value="#111214" maxlength="7" spellcheck="false">
+        <button class="ib" id="pick" title="Пипетка — выбрать цвет с экрана"><i data-lucide="pipette"></i></button>
+      </div>
+    </div></div>
 
-  <!-- НОВЫЙ БЛОК: Резкость (встроена в общий ряд) -->
-  <div class="ctl"><div class="row">
-    <span style="font-size:10px;width:35px;color:var(--mu);text-align:center">Резк</span>
-    <input type="range" id="cc-sh" min="0" max="300" value="0">
-    <span class="val" id="cc-sh-v">0%</span>
-  </div></div>
-  <!-- // НОВЫЙ БЛОК -->
+    <div class="ctl"><div class="row">
+      <span style="font-size:10px;width:35px;color:var(--mu);text-align:center">Резк</span>
+      <input type="range" id="cc-sh" min="0" max="300" value="0">
+      <span class="val" id="cc-sh-v">0%</span>
+    </div></div>
+  </div>
+  <!-- // ГРУППА -->
 
   <div class="combo-inputs">
     <input type="text" id="cbIn1" placeholder="Текст темной плашки">
@@ -154,7 +172,6 @@ function updateSharpen() {
 }
 shInput.addEventListener('input', updateSharpen);
 
-// Функция резкости (Unsharp Mask)
 function applySharpen(ctx, width, height, amount) {
   if (amount <= 0) return;
   const strength = amount / 100;
@@ -287,11 +304,9 @@ async function paint(canvas, S){
   const k = S / DESIGN;
   c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
 
-  // 1. Фон
   c.fillStyle = st.bg; 
   c.fillRect(0, 0, S, S);
 
-  // 2. Основная картинка + Резкость
   if(st.loaded && currentImg && currentImg.naturalWidth){
     const ratio = st.bw / st.bh;
     let fwD, fhD;
@@ -329,7 +344,6 @@ async function paint(canvas, S){
     c.restore();
   }
 
-  // 3. Плашки и логотипы
   const tm = topMetrics();
   const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
   const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
