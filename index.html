@@ -1,668 +1,1206 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Холст</title>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lucide@latest"></script>
-<style>
-:root{--bg:#1e1f22;--s:#2b2d31;--s2:#313338;--bd:#3f4147;--tx:#e6e6e8;--mu:#9a9ca3;--bl:#2e88f7;--pk:#e5456a;--gr:#13d679;--r:10px}
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;font:14px -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
-body{display:flex;flex-direction:column;height:100vh}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSPORTS | Генератор Новостей</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Montserrat:wght@600;700&family=Oswald:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
-.panel { max-height: 45vh; overflow-y: auto; }
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-size: 16px; }
+        html { color-scheme: light; width: 100%; }
+        body {
+            margin: 0; background: #f2f2f7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px 16px; align-items: center; display: flex; flex-direction: column;
+        }
+        .app-container { display: flex; flex-direction: column; width: 100%; max-width: 1100px; align-items: center; gap: 24px; }
 
-.stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:24px;background:#1a1b1e}
-.wrap{position:relative;width:min(82vh,100%);aspect-ratio:1;background:#111214;border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;touch-action:none;cursor:grab;user-select:none}
-.wrap.drag{cursor:grabbing}
-.wrap.empty{cursor:pointer;border:2px dashed var(--bd)}
-.wrap.empty::before{content:"";position:absolute;inset:0;z-index:0;background:repeating-linear-gradient(45deg,#1c1d20,#1c1d20 12px,#202226 12px,#202226 24px)}
-.wrap:not(.empty)::before{display:none}
-.hint{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mu);font-size:13px;text-align:center;pointer-events:none}
-.hint i{width:34px;height:34px}
-.wrap:not(.empty) .hint{display:none}
-#cv{display:block;width:100%;height:100%;position:absolute;inset:0;z-index:1;pointer-events:none}
+        /* === Панель настроек === */
+        .controls {
+            display: flex; flex-direction: column; gap: 10px;
+            max-width: 560px; min-width: 0; width: 100%;
+        }
 
-.panel{flex:0 0 auto;background:#25272b;border-top:1px solid var(--bd);padding:10px 14px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
-.ctl{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;display:flex;align-items:center;flex:0 1 240px;min-width:190px}
-.row{display:flex;align-items:center;gap:6px;width:100%}
+        .settings-section {
+            background: #ffffff; border-radius: 14px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+        }
+        .settings-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 14px; cursor: pointer; user-select: none;
+            font-size: 14px; font-weight: 600; color: #1c1c1e;
+            transition: background 0.15s;
+        }
+        .settings-header:hover { background: #f9f9fb; }
+        .settings-header .chevron {
+            margin-left: auto; width: 18px; height: 18px; flex-shrink: 0;
+            transition: transform 0.2s ease; color: #8e8e93;
+        }
+        .settings-section.collapsed .chevron { transform: rotate(-90deg); }
+        .settings-section.collapsed .settings-body { display: none; }
+        .settings-header .icon {
+            width: 18px; height: 18px; flex-shrink: 0; color: #1a2b3c;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .settings-header .icon svg { width: 18px; height: 18px; }
 
-/* ОБЩИЙ КОНТЕЙНЕР ДЛЯ ЦВЕТА И РЕЗКОСТИ */
-.bg-sharp-group {
-  display: flex;
-  flex: 2 1 500px; /* Занимает больше места, чем обычный контрол */
-  gap: 8px;
-  min-width: 0;
-}
-.bg-sharp-group .ctl { flex: 1 1 50%; min-width: 0; }
+        .settings-body {
+            display: flex; flex-direction: column; gap: 8px;
+            padding: 0 14px 14px;
+        }
 
-.ib{width:24px;height:24px;padding:0;border:1px solid var(--bd);background:var(--s2);color:var(--tx);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.ib:hover{background:#3a3d44}
-.ib i{width:13px;height:13px}
-input[type=range]{flex:1;min-width:80px;height:4px;cursor:pointer;accent-color:var(--bl)}
-.val{min-width:56px;text-align:right;font-size:11px;color:var(--mu);cursor:pointer;border-radius:4px;padding:2px 4px}
-.val:hover{background:var(--s2);color:var(--tx)}
-.pw{position:relative;display:inline-flex;align-items:center;gap:8px;flex:1}
-.sw{width:28px;height:28px;border-radius:8px;border:1px solid var(--bd);cursor:pointer;flex:0 0 auto;background:#111214}
-.hex{flex:1;min-width:0;background:none;border:none;color:var(--tx);font:12px ui-monospace,monospace;outline:none;padding:4px 2px;text-transform:uppercase}
-#ci{position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:0;padding:0}
-.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:36px;border:none;border-radius:var(--r);font:600 12px inherit;color:#fff;cursor:pointer;white-space:nowrap}
-.btn i{width:14px;height:14px}
-.u{background:var(--bl)}.u:hover{background:#1e74e0}
-.d{background:var(--gr)}.d:hover{background:#0fbb69}
-.d:disabled{background:#4a4d54;color:#888b92;cursor:not-allowed}
-.r{background:var(--pk)}.r:hover{background:#cf3459}
-.sh{background:#7c5cff}.sh:hover{background:#6a4be0}
-#fi{display:none}
-.combo-inputs{display:flex;flex:1 1 100%;gap:8px;flex-wrap:wrap;margin-top:8px}
-.combo-inputs input{
-  flex:1 1 200px;height:40px;background:var(--s2);border:1px solid var(--bd);color:var(--tx);
-  padding:10px 14px;border-radius:8px;font-size:14px;outline:none;transition:border-color .15s;
-}
-.combo-inputs input:focus{border-color:var(--bl)}
-.badge-color-ctl{flex:0 1 240px;min-width:190px}
-.badge-color-label{font-size:11px;color:var(--mu);white-space:nowrap;margin-right:6px}
+        /* Универсальная строка настроек */
+        .row {
+            display: flex; align-items: center; gap: 8px;
+            min-width: 0; flex-wrap: wrap;
+        }
+        .row > input[type=text],
+        .row > input[type=url] {
+            flex: 1 1 140px; min-width: 0;
+            padding: 9px 11px; font-family: inherit; font-size: 14px;
+            border: none; background: #f2f2f7; color: #1c1c1e;
+            border-radius: 9px; outline: none;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .row > input[type=text]:focus,
+        .row > input[type=url]:focus { background: #e9e9ee; box-shadow: 0 0 0 3px rgba(26,43,60,0.12); }
+        .row > input[type=text]::placeholder { color: #a0a0a5; }
 
-/* Белые линии для подложки текста */
-.text-bg-white-border-top {
-  border-top: 2px solid #ffffff;
-}
-.text-bg-white-border-bottom {
-  border-bottom: 2px solid #ffffff;
-}
+        /* Строка заголовков: каждый инпут во всю ширину, друг под другом */
+        .row.titles { flex-direction: column; align-items: stretch; gap: 8px; }
+        .row.titles > input[type=text] {
+            flex: none; width: 100%;
+        }
 
-@media(max-width:760px){
-  .stage{padding:12px}
-  .wrap{width:min(70vh,100%)}
-  .panel{padding:8px 8px 16px;gap:6px}
-  .ctl{flex:1 1 100%;min-width:0}
-  .bg-sharp-group { flex-direction: column; flex: 1 1 100%; }
-  .bg-sharp-group .ctl { flex: 1 1 100%; }
-  .btn{flex:1 1 auto;justify-content:center}
-}
-</style>
+        /* Кнопки в строке */
+        .btn {
+            padding: 9px 13px; font-size: 13px; font-weight: 600; cursor: pointer;
+            border-radius: 9px; white-space: nowrap; flex-shrink: 0;
+            transition: opacity 0.15s, background 0.15s;
+            border: none;
+        }
+        .btn:active { opacity: 0.8; }
+        .btn.dark { background: #1a2b3c; color: #fff; }
+        .btn.light { background: #e5e5ea; color: #1a2b3c; }
+        .btn.white { background: #fff; color: #1a2b3c; border: 1px solid #d1d1d6; }
+
+        /* Строка с ползунком */
+        .range-row {
+            display: flex; align-items: center; gap: 10px;
+            background: #f2f2f7; padding: 8px 12px; border-radius: 9px;
+        }
+        .range-row label {
+            font-size: 13px; color: #1c1c1e; white-space: nowrap;
+            min-width: 62px; flex-shrink: 0;
+        }
+        .range-row input[type=range] {
+            flex: 1; min-width: 0; accent-color: #1a2b3c;
+            background: transparent; padding: 0; border: none;
+        }
+        .range-row .val {
+            font-size: 13px; font-weight: 600; color: #1c1c1e;
+            min-width: 42px; text-align: right;
+            font-variant-numeric: tabular-nums; flex-shrink: 0;
+        }
+
+        /* Цвет */
+        .row input[type=color] {
+            width: 42px; height: 36px; padding: 3px; cursor: pointer;
+            border-radius: 9px; background: #f2f2f7; border: 1px solid #d1d1d6;
+            flex-shrink: 0;
+        }
+
+        /* Кнопки действий */
+        .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+        .btn-group { display: flex; gap: 8px; }
+        .primary-btn, .secondary-btn {
+            padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer;
+            border: none; border-radius: 12px; transition: opacity 0.2s ease, transform 0.1s ease; width: 100%;
+        }
+        .primary-btn { background: #1a2b3c; color: #ffffff; }
+        .secondary-btn { background: #e5e5ea; color: #1a2b3c; }
+        .primary-btn:active, .secondary-btn:active { transform: scale(0.98); }
+        .secondary-btn:disabled, .primary-btn:disabled { opacity: 0.6; cursor: wait; }
+
+        .status {
+            max-width: 500px; margin: 10px auto; padding: 10px; border-radius: 8px;
+            font-size: 14px; text-align: center; display: none;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.info    { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        /* Превью */
+        .preview {
+            position: relative; width: 100%; max-width: 521px; aspect-ratio: 1 / 1;
+            flex-shrink: 0; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 12px; background: #2c3e50; order: -1;
+        }
+        @media (min-width: 1100px) {
+            .app-container { flex-direction: row; align-items: flex-start; justify-content: center; gap: 40px; }
+            .preview { order: 0; position: sticky; top: 16px; }
+        }
+        @media (max-width: 600px) {
+            body { padding: 12px 10px; }
+            .settings-header { padding: 11px 12px; }
+            .settings-body { padding: 0 12px 12px; }
+            .btn { padding: 9px 10px; font-size: 12px; }
+            .row > input[type=text] { padding: 9px 10px; }
+        }
+
+        /* === Доска === */
+        .board {
+            position: absolute; top: 0; left: 0; width: 1000px; height: 1000px;
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            padding: 0; box-sizing: border-box; transform-origin: 0 0;
+            transform: scale(var(--k, 0.521)); overflow: hidden; color: #fff;
+            --font-heading: "Oswald", "Arial Narrow", Impact, sans-serif;
+            --font-label: "Montserrat", Arial, sans-serif;
+        }
+        .board.plain-bg { background-image: linear-gradient(135deg, #3a4044, #1f2327); }
+
+        .bg-layer {
+            position: absolute; top: 0; left: 0; width: 1000px; height: 1000px;
+            z-index: 0; overflow: hidden; display: none;
+            touch-action: none;
+            pointer-events: auto;
+            cursor: grab;
+        }
+        .bg-layer.visible { display: block; }
+        .bg-layer.dragging { cursor: grabbing; }
+        .bg-layer img {
+            position: absolute; left: 0; top: 0;
+            transform-origin: 0 0; will-change: transform;
+            user-select: none; -webkit-user-drag: none; pointer-events: none;
+            max-width: none; max-height: none;
+        }
+        .bg-layer canvas.sharpen-canvas {
+            position: absolute; left: 0; top: 0;
+            transform-origin: 0 0; pointer-events: none;
+            image-rendering: auto;
+        }
+
+        .vignette-layer {
+            position: absolute; inset: 0; width: 1000px; height: 1000px;
+            z-index: 1; pointer-events: none; opacity: 0;
+            mix-blend-mode: multiply;
+            transition: opacity 0.15s ease;
+        }
+        .vignette-layer.visible { opacity: 1; }
+
+        .tl {
+            position: absolute; left: 39px; top: 24px; width: 129px; height: 129px;
+            border-radius: 14px; overflow: hidden; z-index: 10; background-color: #dc143c;
+            background-repeat: no-repeat; background-position: center; background-size: 90%;
+            pointer-events: none;
+        }
+
+        /* Плашки заголовков */
+        .plate {
+            position: absolute; left: 192px; height: 56px; max-width: 770px;
+            padding: 0 12px 0 13px; background: #e4e8ee; border-radius: 10px;
+            font-family: var(--font-label); font-weight: 700; font-size: 46.2px;
+            line-height: 58px; white-space: nowrap; color: #000;
+            text-transform: uppercase; overflow: hidden; z-index: 10;
+            pointer-events: none;
+        }
+        .plate.top    { top: 24px; }
+        .plate.bottom { top: 97px; }
+
+        /* Третья строка — под красным квадратом, начинается от левого края квадрата */
+        .plate.underLogo {
+            left: 39px;
+            top: 168px;              /* 24 + 129 + 15 отступ */
+            max-width: 921px;        /* 960 - 39, чтобы правый край был как у остальных */
+            height: 56px;
+            line-height: 58px;
+            font-size: 46.2px;
+        }
+
+        .footer2 { position: absolute; left: 0; top: 930px; width: 1000px; height: 44px; z-index: 10; pointer-events: none; }
+        .footer2 .fp { position: absolute; top: 0; height: 43px; border-radius: 9px; }
+        .footer2 .fp.brand {
+            left: 39px; width: 132px;
+            background: #dc143c url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAG4AAAAhCAYAAAA4VZ5CAAABdmlDQ1BJQ0MgUHJvZmlsZQAAeJx1kT1Lw1AUhp9WpWIrRXQQceigolBBFMRR69CliNQKVl3S2A8haUPSIsVVcHEoOIgufg3+A10FVwVBUAQRZ0e/FpF4rhEqojfcnIf33vdw8gb8CUM3ncZxMItlOxmPRebS85HAIy20EWSAsKY71sT0dIJ/19s1PlWvBlWv/+/9uYJLWUcHX7PwqG7ZZWGZhsRK2VK8IdyhF7Ql4T3hqC0DCp8rPePxg+K8xy+K7VRyEvyqZyT/gzM/WC/YpnC/cI9pVPTvedSXhLLF2RmpXbK7cUgSJ0aEDBWWMSgzKLUomf3tG/ryTVESjy5viyq2OPIUxBsVtSJds1JzomflMaiq3H/n6eRGhr3uoRg03bvucy8ENuGj5rrv+677cQANd3BarPtLktPYq+i1utazC+E1OD6ra5ktOFmHzltLs7UvqUG2P5eDpyNoTUP7JbQseFl9n3N4A6lV+UUXsL0DfXI/vPgJBhxoDIbKDO0AAAfBSURBVHic7Zt/kFZVGcc/K4uIPxBSCrVEwQzHNKIIxHR0slRs8A8TRSMctywHm5oMG60xTSZBU/AXaqLhj0zHpgDjRwPajo2FKSKujExbELZsQuEuqbTyIt/+eJ47e96z595933ptZ7b3O3Pmnvs833PuOfec85znPO99GyRRJfYDZgBfBJqBO4Ft1VZSx3+HhioGbiTwZeBS4PBAvgtYBPwYWF/LxtWRj0oGbiLwNWA6sE8gfx0YEXGXAncDK2vVwDrS2CdH3gCcD6wGfo+Zxoy7DJiCrcBTgZ8BJddNAVYAzwNNwAHvSavr6LHiDsNMYRNwdCB/AzOHC4FXE/UcgQ3upcDoQP534CfAfcCfatXoOgBJSPq4pHsk/UvleFnS1yUNcV6YPiXpoIR8mqSn1BOPSPp0gl9P/0FC0nWJl7xM0rmJAidKmi2p1Xkdku7IGZAJku6VtCmq+86+7nR/SEhaGrzUZtnqC0mHSZop6RkVY52k70gaFZWfJGlrwPtdX3e6P6RG4B+B5VwKrPP8WOAazOEYFHBeAR7CPMdPAl8CTnP+WGAO5sD8HDgeuIjy40P9zFcDNEb3w4P8VMyzBHgLWIwN2KqA04I5HycAFwAXYs7JOZ5C7AIeBm6vQbv/7xEPXIjOIH8r8P0CbounpcBzka4VuB/zSqtdbQOCfAOw11NKH2IvoAJeA/BuxIkxBDvO7MXexTsF3MZEXe8G+X0TbUqhAdgT3Of2L+8cF6OtQt4hQX41tmqPBeZS+aBNxszwniiVgCudcw7wYoKTpUucNwZYC/wzUVcXsBz4UPT864G/AjuBdizQ0IWdZ6dF3KuAv3h9cRvagB867+IEZwuwI5Jtcv5ZwEsF/ZtatOLCQT0VeBR4u4CflXkEuAtY0ws3hfOwvRFgO7AR2O33wvbXIcCvXNZCekJs8euFwDjspa2O2nkacDbwGHCyy5e7DCyQ0Iatpo9iEaSJwP6YBQGYDQwENgB/C+rfH5gEXI3t9+uxLabB9UcAx3k+bNdG4FB/NtjghT5Ihq1IeiDw+G4MPJd5kde4XdJ8SePeI09pgKS3/FlXF/BOcc62Cur8rnOvT+hGBX1D0nGef1PSyAT/K64vBbKdLhuc4M923WMJ3VjXLUnoznTd5qK+FZnKZspN5HDgG5jpeRqLlAwuKF8tTsT2lE7gxgLe634dCpzZS53ZfjEwodsU3Z/i18fpXrEh7sPMZyMwymXZPjY8wc8C7vsmdFmMN/X+2v36fuAzCT3QM1b5ZpBf4g2cTvlyBjgdczY2AbcAH8t7QBU4yq8tvfBagSewF7IS6AAWAJ8j39nalZDFbc72utaCZ2fhvg/6NXM2UgMw3q+dCV323hsSuhbgSczcrsZM5R3AGUG5HgN3ZHRfwvasz2J7xXws/phhBPAtzBavwjbh1AyrBFm5rgq4U7EJ9SS28i4Hfo3FVG+m54uZCfwhSGu9zQBP+TVbNaFXFyNrWzxBtmIO0089PQ3Mct2SCvoTYwrmYC3HHL4rsPe7g8waqXyPk6TnJF0uaViOfT1AUpOk3yqNNkk3STo+KjdA0vckXZJT7+e9/Noi255IB0v6gqRHgzbc47pZOW2ULFy3WNII597l8msKnrXeOSf5/Q6/R9KtQd0lSVsk3ZxTz2Tnraqgf8MkTZX0eFD//NTAhR1bIIs55lU6UdLdkjoT5f/onMGSvi3bbCXptpy6MmdhdwWdKWqPZE4DslCdZBOpt7JXOndZAafknOEqH7hDJA2S9JLfL+rlWdUMXJhO93LbipyToZgJWoOZphTWOOdozBw9H+gGAzcAf8bM11EuT7m3YPtlC+ZIrMDc5YGYuQsTCVkmH+LXPQEPun8vLEJm0iZjYbxw/xmKRX0agc2UbxdgLvw7wATsyDIDuK2CZ+Yhr38H+bUUr7jbJZ0v6UWVY1aFM2K0esfsgvJjZCs9Dz9yXm/IVvVNfv9whe2/NqqnQ3Y8yFCS/ZyV8TOMCWT7Sdrg8nWSDk885wLXtyZ0Iyvo39x4k+3APLYnMI8tc7dnYrN/Ed3uaogDsVk6I2cGtdHtiaVc8wwbsUjLRZhXdijlDtQGvy7PqWcnFiSf4/fPAB9wfiX4AfAs5hyc5GX3YJalGQtCbA74C7AjzI5A1gV8ApiHRW4mAL+MnvMqFvd9JdGGXZTHg0N0Yo7V3HjFZTMa2d4Vo0vSQknjg9kxV3Y4j1Hyuo+RdEUgn5eYZfVUZYpX3BtB/gYsZtdE94FzkN83YbHCE+g589uxkNBC4DWX7Q70RSuujgoROyfHBvl2LEg6GjufNUfccZQPwgvAZdggX0v3oAF8OMjXB64WkLQyMnEbJH1T6XPcJJmrWwr4iyWdneA2ys5sz0b1r+hrM9MfErLDdqd6okO2H8UHaSQdKfuIaHyO7jpJryXqlKSr+rrT/SFlmWGyQ3L2EVCMX0g6q5fKTlbP1Zhhu6Q5suNCn3e6P6SU8GL1NG8ZXpB0meyskvGnSfpNDr9F5lEe2Ncd7W+p6BP0M7BPz89L6Nqx6MYkun8QDLES+y9BfH6po0ao5L8Dx2DeYhPwvgLe28CDwL3AyzVpXR25qObfOgdjn5h/FfhIIN+M/ch4P/a5QR3/A1QzcCGmA+di5vIBev96qY4a498+EdAyQ+pWpwAAAABJRU5ErkJggg==) center / 118px 36px no-repeat;
+        }
+        .footer2 .fp.insta {
+            left: 179px; top: 1px; width: 42px; height: 42px;
+            background: #9a5cf8 url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdCAYAAABWk2cPAAABdmlDQ1BJQ0MgUHJvZmlsZQAAeJx1kT1Lw1AUhp9WpWIrRXQQceigolBBFMRR69CliNQKVl3S2A8haUPSIsVVcHEoOIgufg3+A10FVwVBUAQRZ0e/FpF4rhEqojfcnIf33vdw8gb8CUM3ncZxMItlOxmPRebS85HAIy20EWSAsKY71sT0dIJ/19s1PlWvBlWv/+/9uYJLWUcHX7PwqG7ZZWGZhsRK2VK8IdyhF7Ql4T3hqC0DCp8rPePxg+K8xy+K7VRyEvyqZyT/gzM/WC/YpnC/cI9pVPTvedSXhLLF2RmpXbK7cUgSJ0aEDBWWMSgzKLUomf3tG/ryTVESjy5viyq2OPIUxBsVtSJds1JzomflMaiq3H/n6eRGhr3uoRg03bvucy8ENuGj5rrv+677cQANd3BarPtLktPYq+i1utazC+E1OD6ra5ktOFmHzltLs7UvqUG2P5eDpyNoTUP7JbQseFl9n3N4A6lV+UUXsL0DfXI/vPgJBhxoDIbKDO0AAALNSURBVHicrZfLS1VRFMZ/93pNKykwwQwxiqsQ1KRBUT4QogdW/0MTnUQQQQ0i0B6DiggCoccgImjULFAhByGlERVUUJZBUiqRDXrg61rwNdjr6uF09rnnlh9s1jl7r/N9a++91j7npCSRAGuBPUAjsAmoBVYAM8A4MAwMAfeBzwXZJMW1rKRbknJKhpyk25Ia4njjBDsTCvnQVYxoSlLffwrm0S+ptJBoiaTnSySYxytJZUGddGiL+4CtSTKrCGyxBFtASovZexjojnn4NfATiEr3FLAGaIh5/jhwCVhY3uqY5bke3pOYVimpN4arVhIZi+KUJ7pu4AiuRg/ZbAjNNgVUmO0A2oAHQGsEXyfQjqSMpKmIqGYt+rYEyTIn6aakGUn1klZ6/HKSypG01+PQa6Ijof4fkq5IOibpjvX1mO+QpGd2PeHhPZgBWjxL+8VsRaDvEdAc8jtry/kQ2AY8tv6vwLoI3uY0kPWIlpqdNfvDBOuAEWAeGADe4s7kJqAEmDT/DNHYmAY2eAZTofuLZt8B9RZUC662PwA9BcTyyKaBqgJOefEBIywPje8zO1SAJ4+qNDBWwClfHq3Ab2AuNN5ndmdC0dE08DGh8wncrLO402kG6MfV5Xpgv/mFt+Uv0QzwxjM4b3a52VW4DG0CNgf86ljMWHAvd4BfHt7htEUbhUqzU4G+RmAauAGcBO7iVqom4DNh1pcr/fkzcyyiiL/b2AFPkftQJ2mZZ2xcgbP3srUgVuPO5HO4/ToKVHuiFzAKdAGfgHseP6dhs8lImvREd0bJ3zLIfVNFYVL2FRF8n7bgajEK08BT4JvdBzNUdl8N7PA8D67kBoIzzbfzRexdMbgQ1IlanqtLLHgtrOHbl64lEjwdxR+XELslvfhHsZeSdvm4k2Rju6TBhGKDkjoKcQaztxDqge24f5kaoAzI4f5dhoEnwPskRH8AZ0MT30dYLz8AAAAASUVORK5CYII=) center / 30px 30px no-repeat;
+        }
+        .footer2 .fp.tg {
+            left: 229px; top: 1px; width: 42px; height: 42px;
+            background: #2e88f7 url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB8AAAAeCAYAAADU8sWcAAABdmlDQ1BJQ0MgUHJvZmlsZQAAeJx1kT1Lw1AUhp9WpWIrRXQQceigolBBFMRR69CliNQKVl3S2A8haUPSIsVVcHEoOIgufg3+A10FVwVBUAQRZ0e/FpF4rhEqojfcnIf33vdw8gb8CUM3ncZxMItlOxmPRebS85HAIy20EWSAsKY71sT0dIJ/19s1PlWvBlWv/+/9uYJLWUcHX7PwqG7ZZWGZhsRK2VK8IdyhF7Ql4T3hqC0DCp8rPePxg+K8xy+K7VRyEvyqZyT/gzM/WC/YpnC/cI9pVPTvedSXhLLF2RmpXbK7cUgSJ0aEDBWWMSgzKLUomf3tG/ryTVESjy5viyq2OPIUxBsVtSJds1JzomflMaiq3H/n6eRGhr3uoRg03bvucy8ENuGj5rrv+677cQANd3BarPtLktPYq+i1utazC+E1OD6ra5ktOFmHzltLs7UvqUG2P5eDpyNoTUP7JbQseFl9n3N4A6lV+UUXsL0DfXI/vPgJBhxoDIbKDO0AAAJgSURBVHicvZdfaE5xGMc/exulFAup1YxiUthIu2CF/Lvg0t9IuRE3EheS3KjVbrQbF25QuHJBSQ3ztzWKks3mSnKzGmq1bI3UPi7OOTm93vec37u9863T2+88z3k+v+c8zznneWtUAtUCbAdagRXAYmAWMA4MAYNAL/AIGA6KqOYd+9XnhmtCva625MXOMraoLyqAllKnWlMp/Pg0oWkNqitD4eerCE40oa7Ngx+eAXCiH+r8NK/Gv93eCHwJbf0p6hWwKVkUUoa7MwwG2AgcTRZJ5ruAh/8BDjAGzAMmk8zbqxj8DXAMOFXGPhc4AYC6tArNNKxeVhtTDbUow79fpRbYO40su4GbwO143QTUAAL7Mq5bAywrEDVBJfpEVKZVwM4Y3AD0ALuB2bHfhpw4bagDAbf1l3pH3eO/L6WLsc/povN5cS+hfs1weKueVetLQJvUvthva5FtQUBCV1FHyhjPlAAmx4WU35IS9h0B8Gu1RN/juhI1OQIsB54RNdYo0AZcAZrj2q8jem6LtT6gd8ZRXwfsckTtSa2fZNwV1HsBMc8VgI8Bu6yLswYYIJpostQaELO/ADwOcEyrL8feANTn+PwGegrAfWCyAvho/HsI6ChhD8m6CxhLanQjoEaJDhpNJom61IWpencExNhiaphoqAD+Tv1ZdO67ui2O1Ztz/Ydko+kO7axgA+X0PsCnuRQc9XMVNpCl9jSvGN5gNOzNhB4UsUpOr6vVbzMNLgdHXax2VwncUYaR+3fppDo0RehLdXNW/PToXE5ziGayA0QflEKG7wTwFLgVv0gy9Qe+yTNsCpGjpQAAAABJRU5ErkJggg==) center / 30px 30px no-repeat;
+        }
+        .footer2 .fp.handle {
+            left: 278px; width: 203px; background: #e4e8ee; color: #000;
+            font-family: var(--font-label); font-weight: 600; font-size: 16.5px;
+            line-height: 43px; letter-spacing: 0.07em; padding-left: 7px; white-space: nowrap;
+        }
+        .footer2 .fp.mappill {
+            right: 40px; padding: 0 14px; background: #9a5cf8; color: #e4e8ee;
+            font-family: var(--font-label); font-weight: 700; font-size: 25px;
+            line-height: 43px; white-space: nowrap; width: auto;
+            max-width: 420px; overflow: hidden; text-overflow: ellipsis;
+        }
+        .footer2 .fp.mappill:empty { display: none; }
+    </style>
 </head>
 <body>
-<div class="stage">
-  <div class="wrap empty" id="wrap">
-    <canvas id="cv"></canvas>
-    <div class="hint"><i data-lucide="image-plus"></i><span>Нажмите или перетащите картинку</span></div>
-  </div>
-</div>
 
-<div class="panel">
-  <div class="ctl"><div class="row">
-    <button class="ib" data-t="sc" data-s="-1"><i data-lucide="minus"></i></button>
-    <input type="range" id="sc" min="5" max="400" value="100" step="0.1">
-    <button class="ib" data-t="sc" data-s="1"><i data-lucide="plus"></i></button>
-    <span class="val" id="scV">100.0%</span>
-  </div></div>
+    <div id="statusMessage" class="status"></div>
 
-  <div class="ctl"><div class="row">
-    <button class="ib" data-t="fs" data-s="-0.5"><i data-lucide="minus"></i></button>
-    <input type="range" id="fs" min="6" max="96" value="16" step="0.1">
-    <button class="ib" data-t="fs" data-s="0.5"><i data-lucide="plus"></i></button>
-    <span class="val" id="fsV">16.0px</span>
-  </div></div>
+    <div class="app-container">
+        <div class="controls">
 
-  <!-- ГРУППА: ЦВЕТ + РЕЗКОСТЬ В ОДНОЙ СТРОКЕ -->
-  <div class="bg-sharp-group">
-    <div class="ctl"><div class="row">
-      <div class="pw">
-        <button class="sw" id="sw" title="Цвет фона"></button>
-        <input type="color" id="ci" value="#111214">
-        <input class="hex" id="hx" value="#111214" maxlength="7" spellcheck="false">
-        <button class="ib" id="pick" title="Пипетка — выбрать цвет с экрана"><i data-lucide="pipette"></i></button>
-      </div>
-    </div></div>
+            <!-- ЗАГОЛОВКИ -->
+            <div class="settings-section" id="sec-titles">
+                <div class="settings-header" data-toggle="sec-titles">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+                    </span>
+                    Заголовки
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="settings-body">
+                    <div class="row titles">
+                        <input type="text" id="titleTop" placeholder="Верхняя строка" />
+                        <input type="text" id="titleBottom" placeholder="Средняя строка" />
+                        <input type="text" id="titleThird" placeholder="Третья строка" />
+                    </div>
+                </div>
+            </div>
 
-    <div class="ctl"><div class="row">
-      <span style="font-size:10px;width:35px;color:var(--mu);text-align:center">Резк</span>
-      <input type="range" id="cc-sh" min="0" max="300" value="0">
-      <span class="val" id="cc-sh-v">0%</span>
-    </div></div>
-  </div>
-  <!-- // ГРУППА -->
+            <!-- ПЛАШКА -->
+            <div class="settings-section" id="sec-badge">
+                <div class="settings-header" data-toggle="sec-badge">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    </span>
+                    Плашка вместо карты
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="settings-body">
+                    <div class="row">
+                        <input type="text" id="mapText" placeholder="Например: MIRAGE" />
+                        <input type="color" id="mapColor" value="#9a5cf8" title="Цвет плашки" />
+                    </div>
+                </div>
+            </div>
 
-  <div class="combo-inputs">
-    <input type="text" id="cbIn1" placeholder="Текст темной плашки">
-    <input type="text" id="badgeText" value="NEWS" placeholder="Текст правой нижней плашки" maxlength="24">
-  </div>
+            <!-- ФОН -->
+            <div class="settings-section" id="sec-bg">
+                <div class="settings-header" data-toggle="sec-bg">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </span>
+                    Фон доски
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="settings-body">
+                    <div class="row">
+                        <input type="text" id="bgUrl" placeholder="URL картинки" />
+                        <button type="button" class="btn dark" id="applyBgUrl">OK</button>
+                        <label class="btn dark" style="margin:0;">
+                            Файл
+                            <input type="file" id="bgFile" accept="image/*" style="display:none;" />
+                        </label>
+                        <button type="button" class="btn light" id="clearBg">Сброс</button>
+                    </div>
 
-  <div class="acts" style="margin-top:12px;">
-    <input type="file" id="fi" accept="image/*">
-    <label for="fi" class="btn u"><i data-lucide="upload"></i>Загрузить фон</label>
-    <button id="sh" class="btn sh"><i data-lucide="share-2"></i>Поделиться</button>
-    <button id="dl" class="btn d" disabled><i data-lucide="download"></i>Скачать</button>
-    <button id="rs" class="btn r"><i data-lucide="rotate-ccw"></i>Сбросить</button>
-  </div>
-</div>
+                    <div class="range-row" id="zoomRow" style="display:none;">
+                        <label>Зум</label>
+                        <input type="range" id="zoomRange" min="0.2" max="5" step="0.01" value="1" />
+                        <span class="val" id="zoomVal">100%</span>
+                        <button type="button" class="btn white" id="resetView">Центр</button>
+                    </div>
 
-<script>
-lucide.createIcons();
-const $=id=>document.getElementById(id);
-const wrap=$('wrap'), cvEl=$('cv');
-const sc=$('sc'),scV=$('scV'),fs=$('fs'),fsV=$('fsV');
-const ci=$('ci'),hx=$('hx'),sw=$('sw');
-const cbIn1=$('cbIn1');
-const badgeText=$('badgeText');
+                    <!-- Шарпинг -->
+                    <div class="subgroup collapsed" id="sharpenBox" style="display:none;">
+                        <div class="subgroup-toggle" data-subgroup="sharpenBox">
+                            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                            Резкость
+                        </div>
+                        <div class="subgroup-body">
+                            <div class="range-row">
+                                <label>Усиление</label>
+                                <input type="range" id="sharpAmount" min="0" max="300" step="1" value="0" />
+                                <span class="val" id="sharpAmountVal">0%</span>
+                            </div>
+                            <div class="range-row">
+                                <label>Радиус</label>
+                                <input type="range" id="sharpRadius" min="0.5" max="8" step="0.1" value="1.5" />
+                                <span class="val" id="sharpRadiusVal">1.5px</span>
+                            </div>
+                            <div class="range-row">
+                                <label>Порог</label>
+                                <input type="range" id="sharpThreshold" min="0" max="255" step="1" value="0" />
+                                <span class="val" id="sharpThresholdVal">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-const DESIGN = 1000;
-const EXPORT_SIZE = 2048;
-const FONT_BASE = 16;
+            <!-- ВИНЬЕТКА -->
+            <div class="settings-section collapsed" id="sec-vignette">
+                <div class="settings-header" data-toggle="sec-vignette">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    </span>
+                    Виньетка
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="settings-body">
+                    <div class="range-row">
+                        <label>Сила</label>
+                        <input type="range" id="vigStrength" min="0" max="100" step="1" value="50" />
+                        <span class="val" id="vigStrengthVal">50%</span>
+                    </div>
+                    <div class="range-row">
+                        <label>Размер</label>
+                        <input type="range" id="vigSize" min="0" max="100" step="1" value="50" />
+                        <span class="val" id="vigSizeVal">50%</span>
+                    </div>
+                    <div class="range-row">
+                        <label>Мягкость</label>
+                        <input type="range" id="vigSoft" min="0" max="100" step="1" value="60" />
+                        <span class="val" id="vigSoftVal">60%</span>
+                    </div>
+                </div>
+            </div>
 
-const BANNER_FIXED = {
-  borderBottom: 2 * (25/16), bottomHeight: 36 * (25/16), redPadH: 20 * (25/16), redGap: 10 * (25/16),
-  logoFirstH: 22 * (25/16), logoSmallH: 16 * (25/16), logoLinkH:  12 * (25/16), logoLastH:  22 * (25/16),
-  bgRed: '#dc143c', borderBottomColor: '#000',
-};
-const BANNER_TOP = {
-  borderTop: 2, topPadV: 16, topPadH: 19.2, mainFontPx: 28.8, lineHeight: 1.2,
-  bgTop: '#1a1c22', borderTopColor: '#4a5568', textColor: '#ffffff',
-  fontFamily: "'Oswald', Arial, sans-serif", fontWeight: 500,
-};
+            <div class="action-buttons">
+                <div class="btn-group">
+                    <button id="downloadBtn" class="secondary-btn">Скачать (PNG)</button>
+                    <button id="shareBtn" class="secondary-btn">Поделиться</button>
+                </div>
+            </div>
+        </div>
 
-const DEF = { font: 16, bg: '#111214' };
+        <div class="preview" id="preview">
+            <div class="board" id="board">
+                <div class="bg-layer" id="bgLayer">
+                    <img id="bgImg" alt="" />
+                    <canvas id="sharpenCanvas" class="sharpen-canvas"></canvas>
+                </div>
 
-const st = {
-  loaded: false, x: 50, y: 50, scale: 1, bw: 0, bh: 0, bg: '#111214', text: '', fontPx: 16,
-  sharpness: 0,
-  badgeText: 'NEWS'
-};
-let currentImg = null;
+                <div class="vignette-layer" id="vignetteLayer"></div>
 
-// --- ЛОГИКА РЕЗКОСТИ ---
-const shInput = $('cc-sh');
-const shVal = $('cc-sh-v');
+                <div class="tl" id="tournamentLogo"></div>
 
-function updateSharpen() {
-  st.sharpness = parseFloat(shInput.value);
-  shVal.textContent = st.sharpness + '%';
-  schedulePaint();
-}
-shInput.addEventListener('input', updateSharpen);
+                <div class="plate top" id="titleTopLine"></div>
+                <div class="plate bottom" id="titleBottomLine"></div>
+                <div class="plate underLogo" id="titleThirdLine"></div>
 
-function applySharpen(ctx, width, height, amount) {
-  if (amount <= 0) return;
-  const strength = amount / 100;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-  const w = width, h = height;
-  const output = new Uint8ClampedArray(data.length);
-  
-  const center = 1 + 4 * strength;
-  const edge = -strength;
+                <div class="footer2">
+                    <div class="fp brand"></div>
+                    <div class="fp insta"></div>
+                    <div class="fp tg"></div>
+                    <div class="fp handle">/CSPORTS_OFFICIAL</div>
+                    <div class="fp mappill" id="mapBadge"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
-        output[idx] = data[idx]; output[idx+1] = data[idx+1]; output[idx+2] = data[idx+2]; output[idx+3] = data[idx+3];
-        continue;
-      }
-      const left = (y * w + (x - 1)) * 4;
-      const right = (y * w + (x + 1)) * 4;
-      const top = ((y - 1) * w + x) * 4;
-      const bottom = ((y + 1) * w + x) * 4;
+    <!-- стили для подгруппы -->
+    <style>
+        .subgroup { display: flex; flex-direction: column; gap: 8px; }
+        .subgroup-toggle {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 13px; font-weight: 600; color: #1a2b3c;
+            cursor: pointer; padding: 4px 0; user-select: none;
+        }
+        .subgroup-toggle .chevron {
+            width: 16px; height: 16px; color: #8e8e93;
+            transition: transform 0.2s ease;
+        }
+        .subgroup.collapsed .subgroup-toggle .chevron { transform: rotate(-90deg); }
+        .subgroup.collapsed .subgroup-body { display: none; }
+        .subgroup-body { display: flex; flex-direction: column; gap: 8px; }
+        .settings-body .row .btn { display: inline-flex; align-items: center; justify-content: center; }
+    </style>
 
-      for (let c = 0; c < 3; c++) {
-        let val = data[idx + c] * center 
-                + data[left + c] * edge 
-                + data[right + c] * edge 
-                + data[top + c] * edge 
-                + data[bottom + c] * edge;
-        output[idx + c] = Math.max(0, Math.min(255, val));
-      }
-      output[idx + 3] = data[idx + 3];
-    }
-  }
-  imageData.data.set(output);
-  ctx.putImageData(imageData, 0, 0);
-}
-// -----------------------
-
-const BOTTOM_IMGS = [
-  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631162/zye64uci7azgtelqiftf.png",
-  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631167/tlhzy9gdtxcxxcmgi9vn.png",
-  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631164/gmxzyocecemgtxjrmmvu.png",
-  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631073/nhcxkk1zwvz0kvbpsure.png",
-  "https://res.cloudinary.com/dplmdnxvk/image/upload/v1793631479/qjb5hqheltcsyl53tphz.png"
-];
-const bottomImgs = BOTTOM_IMGS.map(() => null);
-let bottomImgsPromise = null;
-
-async function loadBottomImages(){
-  if(bottomImgsPromise) return bottomImgsPromise;
-  bottomImgsPromise = (async ()=>{
-    for (let i=0;i<BOTTOM_IMGS.length;i++){
-      if(bottomImgs[i] && bottomImgs[i].naturalWidth) continue;
-      const src = BOTTOM_IMGS[i];
-      try{
-        const resp = await fetch(src, {mode:'cors'});
-        if(!resp.ok) throw new Error('fetch failed');
-        const blob = await resp.blob();
-        const dataUrl = await new Promise(res=>{
-          const fr = new FileReader(); fr.onload = ()=>res(fr.result); fr.readAsDataURL(blob);
-        });
-        const im = new Image();
-        await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = dataUrl; });
-        try{ await im.decode?.(); }catch(e){}
-        bottomImgs[i] = im;
-      }catch(e){
-        try{
-          const im = new Image(); im.crossOrigin = 'anonymous';
-          await new Promise((res, rej)=>{ im.onload=res; im.onerror=rej; im.src = src; });
-          try{ await im.decode?.(); }catch(e){}
-          bottomImgs[i] = im;
-        }catch(e2){ console.warn('Не удалось загрузить логотип:', src); bottomImgs[i] = null; }
-      }
-    }
-  })();
-  return bottomImgsPromise;
-}
-
-const normHex=s=>{s=String(s||'').trim();if(!s)return null;if(s[0]!=='#')s='#'+s;if(/^#[0-9a-f]{3}$/i.test(s))s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return /^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null;};
-function setBg(c,sync=true){
-  const h=normHex(c)||DEF.bg;
-  st.bg=h;
-  if(sync){ ci.value=h; hx.value=h.toUpperCase(); sw.style.background=h; }
-  schedulePaint();
-}
-sw.onclick=()=>ci.click();
-ci.oninput=e=>setBg(e.target.value);
-hx.oninput=e=>{const h=normHex(e.target.value);if(h){st.bg=h;sw.style.background=h;ci.value=h;schedulePaint();}};
-hx.onblur=()=>hx.value=st.bg.toUpperCase();
-
-badgeText.oninput=()=>{ st.badgeText=badgeText.value; schedulePaint(); };
-
-const pickBtn = $('pick');
-if('EyeDropper' in window){
-  pickBtn.onclick = async () => {
-    try{
-      const eyeDropper = new EyeDropper();
-      const result = await eyeDropper.open();
-      setBg(result.sRGBHex, true);
-    }catch(err){ if(err && err.name !== 'AbortError') console.warn(err); }
-  };
-}else{ pickBtn.style.display = 'none'; }
-
-function topMetrics(){
-  const f = st.fontPx / FONT_BASE;
-  return { f, borderTop: BANNER_TOP.borderTop * f, topPadV: BANNER_TOP.topPadV * f, topPadH: BANNER_TOP.topPadH * f, mainFontPx: BANNER_TOP.mainFontPx * f, lineHeight: BANNER_TOP.lineHeight };
-}
-
-function layoutText(ctx, text, maxWidth){
-  if(!text) return [];
-  ctx.save();
-  const lines = [];
-  const paragraphs = text.split('\n');
-  for(const para of paragraphs){
-    if(para === ''){ lines.push(''); continue; }
-    const words = para.split(/\s+/);
-    let line = '';
-    for(const word of words){
-      const test = line ? (line + ' ' + word) : word;
-      if(ctx.measureText(test).width <= maxWidth || !line){ line = test; }
-      else{ lines.push(line); line = word; }
-    }
-    if(line) lines.push(line);
-  }
-  ctx.restore();
-  return lines;
-}
-
-async function paint(canvas, S){
-  const c = canvas.getContext('2d', {alpha:false});
-  const k = S / DESIGN;
-  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
-
-  c.fillStyle = st.bg; 
-  c.fillRect(0, 0, S, S);
-
-  if(st.loaded && currentImg && currentImg.naturalWidth){
-    const ratio = st.bw / st.bh;
-    let fwD, fhD;
-    if(ratio >= 1){ fwD = DESIGN; fhD = DESIGN / ratio; }
-    else          { fhD = DESIGN; fwD = DESIGN * ratio; }
-    const w = fwD * st.scale * k;
-    const h = fhD * st.scale * k;
-    const cx = st.x / 100 * S;
-    const cy = st.y / 100 * S;
-    
-    c.save();
-    c.beginPath(); 
-    c.rect(0, 0, S, S); 
-    c.clip();
-    
-    try{ c.drawImage(currentImg, cx - w/2, cy - h/2, w, h); } 
-    catch(e){ console.warn('drawImage main failed', e); }
-
-    if (st.sharpness > 0) {
-      const rx = Math.max(0, Math.floor(cx - w/2));
-      const ry = Math.max(0, Math.floor(cy - h/2));
-      const rw = Math.min(S - rx, Math.ceil(w));
-      const rh = Math.min(S - ry, Math.ceil(h));
-      
-      if (rw > 0 && rh > 0) {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = rw; tempCanvas.height = rh;
-        const tCtx = tempCanvas.getContext('2d');
-        tCtx.drawImage(canvas, rx, ry, rw, rh, 0, 0, rw, rh);
-        applySharpen(tCtx, rw, rh, st.sharpness);
-        c.drawImage(tempCanvas, rx, ry);
-      }
-    }
-    
-    c.restore();
-  }
-
-  const tm = topMetrics();
-  const borderTop = tm.borderTop * k, topPadV = tm.topPadV * k, topPadH = tm.topPadH * k, mainFontPx = tm.mainFontPx * k, lineHeightPx = mainFontPx * tm.lineHeight;
-  const borderBottom = BANNER_FIXED.borderBottom * k, bottomHeight = BANNER_FIXED.bottomHeight * k, redPadH = BANNER_FIXED.redPadH * k, redGap = BANNER_FIXED.redGap * k;
-  const logoFirstH = BANNER_FIXED.logoFirstH * k, logoSmallH = BANNER_FIXED.logoSmallH * k, logoLinkH = BANNER_FIXED.logoLinkH * k, logoLastH = BANNER_FIXED.logoLastH * k;
-
-  c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
-  const lines = layoutText(c, st.text, S - topPadH * 2);
-  const textBlockH = Math.max(1, lines.length) * lineHeightPx;
-  const topPartH = topPadV * 2 + textBlockH;
-  const bannerH = borderTop + topPartH + borderBottom + bottomHeight;
-  const bannerY = S - bannerH;
-
-  // Верхняя часть баннера (тёмная плашка с текстом)
-  c.fillStyle = BANNER_TOP.borderTopColor; c.fillRect(0, bannerY, S, borderTop);
-  const topPartY = bannerY + borderTop;
-  c.fillStyle = BANNER_TOP.bgTop; c.fillRect(0, topPartY, S, topPartH);
-
-  // === БЕЛЫЕ ЛИНИИ СВЕРХУ И СНИЗУ ПОДЛОЖКИ ТЕКСТА ===
-  const whiteLineThickness = 2 * k;
-  c.fillStyle = '#ffffff';
-  c.fillRect(0, topPartY - whiteLineThickness, S, whiteLineThickness);
-  c.fillRect(0, topPartY + topPartH, S, whiteLineThickness);
-  // ======================================================
-
-  if(lines.length && st.text){
-    c.save();
-    c.fillStyle = BANNER_TOP.textColor; c.textBaseline = 'middle'; c.textAlign = 'left';
-    c.font = `${BANNER_TOP.fontWeight} ${mainFontPx}px ${BANNER_TOP.fontFamily}`;
-    const firstLineCenterY = topPartY + topPadV + lineHeightPx / 2;
-    for(let i=0;i<lines.length;i++){ c.fillText(lines[i], topPadH, firstLineCenterY + i * lineHeightPx); }
-    c.restore();
-  }
-
-  c.fillStyle = BANNER_FIXED.borderBottomColor; c.fillRect(0, topPartY + topPartH, S, borderBottom);
-  const redY = topPartY + topPartH + borderBottom;
-  c.fillStyle = BANNER_FIXED.bgRed; c.fillRect(0, redY, S, bottomHeight);
-
-  const midY = redY + bottomHeight / 2;
-  const heights = [logoFirstH, logoSmallH, logoSmallH, logoLinkH];
-  let xPos = redPadH;
-
-  // Первые четыре логотипа остаются без изменений.
-  for(let i=0;i<heights.length;i++){
-    const src = bottomImgs[i];
-    if(!src || !src.naturalWidth || !src.naturalHeight) continue;
-    const h = heights[i];
-    const w = src.naturalWidth * (h / src.naturalHeight);
-    try{ c.drawImage(src, xPos, midY - h/2, w, h); } catch(e){ console.warn('drawImage logo failed', i, e); }
-    xPos += w + redGap;
-  }
-
-  // Правая нижняя плашка с надписью (белая подложка, чёрный текст).
-  {
-    const ref = bottomImgs[4];
-    const h = logoLastH;
-    const refW = (ref && ref.naturalWidth && ref.naturalHeight)
-      ? ref.naturalWidth * (h / ref.naturalHeight)
-      : h * 2.6;
-
-    const label = String(st.badgeText || '').trim();
-    const fontPx = h * 0.85;
-    const padX = h * 0.36;
-
-    c.save();
-    c.font = `700 ${fontPx}px ${BANNER_TOP.fontFamily}`;
-    const measured = label ? c.measureText(label).width : 0;
-    const maxW = S * 0.34;
-    const w = Math.min(maxW, Math.max(refW, measured + padX * 2));
-    const x = S - redPadH - w;
-    const y = midY - h/2;
-    const r = Math.min(h * 0.18, 8 * k);
-
-    // Белая подложка
-    c.fillStyle = '#ffffff';
-    c.beginPath();
-    if(c.roundRect){
-      c.roundRect(x, y, w, h, r);
-    }else{
-      c.rect(x, y, w, h);
-    }
-    c.fill();
-
-    if(label){
-      let actualFont = fontPx;
-      const available = Math.max(1, w - padX * 2);
-      if(measured > available) actualFont = fontPx * (available / measured);
-      // Чёрный текст
-      c.fillStyle = '#000000';
-      c.font = `700 ${actualFont}px ${BANNER_TOP.fontFamily}`;
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText(label, x + w/2, midY - 2 * k);
-    }
-    c.restore();
-  }
-}
-
-let paintScheduled = false;
-function schedulePaint(){
-  if(paintScheduled) return;
-  paintScheduled = true;
-  requestAnimationFrame(async ()=>{ paintScheduled = false; await renderPreview(); });
-}
-
-let previewRendering = false;
-async function renderPreview(){
-  if(previewRendering) return;
-  previewRendering = true;
-  try{
-    await ensureReady();
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const rect = wrap.getBoundingClientRect();
-    const cssSize = Math.max(1, Math.round(rect.width));
-    const px = Math.round(cssSize * dpr);
-    if(cvEl.width !== px || cvEl.height !== px){ cvEl.width = px; cvEl.height = px; }
-    await paint(cvEl, px);
-  } finally { previewRendering = false; }
-}
-
-let readyPromise = null;
-function ensureReady(){
-  if(readyPromise) return readyPromise;
-  readyPromise = (async ()=>{
-    try{
-      if(document.fonts){
-        await Promise.all([ document.fonts.load(`500 32px Oswald`), document.fonts.load(`700 32px Oswald`) ]);
-        await document.fonts.ready;
-      }
-    }catch(e){}
-    try{ await loadBottomImages(); }catch(e){}
-  })();
-  return readyPromise;
-}
-
-function setFont(p){
-  const v = Math.max(6, Math.min(96, parseFloat(p) || FONT_BASE));
-  st.fontPx = v; fs.value = v; fsV.textContent = v.toFixed(1) + 'px'; schedulePaint();
-}
-fs.oninput = e => setFont(e.target.value);
-fsV.onclick = () => setFont(DEF.font);
-
-function setScale(s){
-  st.scale = Math.min(4, Math.max(.05, s));
-  sc.value = (st.scale * 100).toFixed(1); scV.textContent = (st.scale * 100).toFixed(1) + '%'; schedulePaint();
-}
-sc.oninput = e => setScale(parseFloat(e.target.value) / 100);
-scV.onclick = () => setScale(1);
-
-cbIn1.oninput = () => { st.text = cbIn1.value; schedulePaint(); };
-
-document.querySelectorAll('.ib').forEach(b=>{
-  b.onclick = ()=>{
-    const t = b.dataset.t, s = parseFloat(b.dataset.s);
-    if(t === 'sc') setScale(st.scale + s/100); else setFont(st.fontPx + s);
-  };
-});
-
-function loadFile(f){
-  if(!f || !f.type.startsWith('image/')) return;
-  const rd = new FileReader();
-  rd.onload = e => {
-    const im = new Image();
-    im.onload = async () => {
-      try{ await im.decode?.(); }catch(err){}
-      currentImg = im; st.bw = im.naturalWidth; st.bh = im.naturalHeight; st.loaded = true;
-      st.x = 50; st.y = 50; st.scale = 1; sc.value = 100; scV.textContent = '100.0%';
-      wrap.classList.remove('empty'); $('dl').disabled = false; schedulePaint();
-    };
-    im.src = e.target.result;
-  };
-  rd.readAsDataURL(f);
-}
-$('fi').onchange = e => loadFile(e.target.files[0]);
-wrap.onclick = () => { if(!st.loaded) $('fi').click(); };
-document.addEventListener('dragover', e => e.preventDefault());
-document.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
-
-let drag = null;
-function down(x,y){ if(!st.loaded) return; drag = {px:x, py:y, x:st.x, y:st.y}; wrap.classList.add('drag'); }
-function move(x,y){
-  if(!drag) return;
-  const rect = wrap.getBoundingClientRect(); const w = rect.width || 1;
-  st.x = drag.x + (x - drag.px) / w * 100; st.y = drag.y + (y - drag.py) / w * 100; schedulePaint();
-}
-function up(){ drag = null; wrap.classList.remove('drag'); }
-wrap.addEventListener('mousedown', e => { if(e.button!==0) return; e.preventDefault(); down(e.clientX,e.clientY); });
-addEventListener('mousemove', e => move(e.clientX,e.clientY));
-addEventListener('mouseup', up);
-
-let pinch = null;
-const td = t => Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
-wrap.addEventListener('touchstart', e=>{
-  if(e.touches.length===1) down(e.touches[0].clientX, e.touches[0].clientY);
-  else if(e.touches.length===2) pinch = {d:td(e.touches), s:st.scale};
-},{passive:true});
-wrap.addEventListener('touchmove', e=>{
-  if(e.touches.length===1 && drag){ e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
-  else if(e.touches.length===2 && pinch){ e.preventDefault(); setScale(pinch.s * td(e.touches)/pinch.d); }
-},{passive:false});
-wrap.addEventListener('touchend', e=>{
-  if(e.touches.length===0){ up(); pinch=null; }
-  else if(e.touches.length===1 && pinch){ pinch=null; down(e.touches[0].clientX, e.touches[0].clientY); }
-});
-wrap.addEventListener('wheel', e=>{ if(!st.loaded) return; e.preventDefault(); setScale(st.scale * (1 - e.deltaY * .0015)); },{passive:false});
-
-addEventListener('resize', () => { renderPreview(); });
-
-let exportBusy = false;
-async function renderExportCanvas(){
-  await ensureReady();
-  const cv = document.createElement('canvas');
-  cv.width = EXPORT_SIZE; cv.height = EXPORT_SIZE;
-  await paint(cv, EXPORT_SIZE);
-  return cv;
-}
-
-async function downloadCanvas(){
-  if(exportBusy || !st.loaded) return;
-  exportBusy = true;
-  const btn = $('dl'); const oldHTML = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-circle"></i>Сохранение…'; lucide.createIcons();
-  try{
-    const cv = await renderExportCanvas();
-    const blob = await new Promise((resolve,reject)=>{ cv.toBlob(b => b ? resolve(b) : reject(new Error('PNG не создан')), 'image/png', 1); });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'canvas.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 3000);
-  }catch(err){ console.error('Ошибка сохранения:', err); alert('Не удалось сохранить.'); }
-  finally{
-    exportBusy = false; btn.disabled = !st.loaded; btn.innerHTML = oldHTML; lucide.createIcons();
-  }
-}
-$('dl').onclick = downloadCanvas;
-
-async function shareProject(){
-  try{
-    const payload = { x: st.x, y: st.y, scale: st.scale, bg: st.bg, text: st.text, font: st.fontPx, sharpness: st.sharpness, badgeText: st.badgeText, img: st.loaded && currentImg ? currentImg.src : null };
-    const cv = await renderExportCanvas();
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    const file = new File([blob], 'canvas.png', {type:'image/png'});
-    if (navigator.canShare && navigator.canShare({files:[file]})) {
-      await navigator.share({ files:[file], title:'Холст', text:'Моя картинка' }); return;
-    }
-    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
-    const url = location.origin + location.pathname + '?state=' + encoded;
-    if (navigator.share) { await navigator.share({ title:'Холст', text:'Открой мою картинку', url }); }
-    else {
-      await navigator.clipboard.writeText(url);
-      const btn = $('sh'); const old = btn.innerHTML;
-      btn.innerHTML = '<i data-lucide="check"></i>Скопировано'; lucide.createIcons();
-      setTimeout(()=>{ btn.innerHTML = old; lucide.createIcons(); }, 1800);
-    }
-  }catch(e){ if(e.name !== 'AbortError') console.error(e); }
-}
-$('sh').onclick = shareProject;
-
-(async function restoreFromURL(){
-  const params = new URLSearchParams(location.search);
-  const raw = params.get('state');
-  if(!raw) return;
-  try{
-    const p = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
-    if(p.bg) setBg(p.bg, true);
-    if(p.text != null){ cbIn1.value = p.text; st.text = p.text; }
-    if(p.font) setFont(p.font);
-    if(p.sharpness != null) { shInput.value = p.sharpness; updateSharpen(); }
-    if(p.badgeText != null){ badgeText.value = p.badgeText; st.badgeText = p.badgeText; }
-
-    if(p.img){
-      await new Promise((res)=>{
-        const im = new Image();
-        im.onload = async ()=>{
-          try{ await im.decode?.(); }catch(e){}
-          currentImg = im; st.bw = im.naturalWidth; st.bh = im.naturalHeight; st.loaded = true;
-          wrap.classList.remove('empty'); $('dl').disabled = false;
-          st.x = p.x ?? 50; st.y = p.y ?? 50; st.scale = p.scale ?? 1;
-          sc.value = (st.scale * 100).toFixed(1); scV.textContent = (st.scale * 100).toFixed(1) + '%';
-          schedulePaint(); res();
+    <script>
+        const UI = {
+            status(msg, type = "info") {
+                const el = document.getElementById("statusMessage");
+                el.textContent = msg;
+                el.className = "status " + type;
+                el.style.display = "block";
+                clearTimeout(UI._timer);
+                UI._timer = setTimeout(() => el.style.display = "none", 5000);
+            }
         };
-        im.onerror = res; im.src = p.img;
-      });
-    }
-  }catch(err){ console.warn('Не удалось восстановить состояние', err); }
-})();
 
-$('rs').onclick = () => {
-  st.loaded = false; st.x = 50; st.y = 50; st.scale = 1; currentImg = null;
-  wrap.classList.add('empty'); $('fi').value = ''; $('dl').disabled = true;
-  sc.value = 100; scV.textContent = '100.0%'; cbIn1.value = ''; st.text = '';
-  setFont(DEF.font); setBg(DEF.bg, true);
-  
-  st.sharpness = 0;
-  shInput.value = 0;
-  shVal.textContent = '0%';
+        const BOARD_SIZE = 1000;
 
-  st.badgeText = 'NEWS';
-  badgeText.value = 'NEWS';
+        function fitPreview() {
+            const preview = document.getElementById('preview');
+            const board = document.getElementById('board');
+            if (!preview || !board) return;
+            const k = preview.clientWidth / BOARD_SIZE;
+            board.style.setProperty('--k', k);
+        }
+        if (window.ResizeObserver) {
+            new ResizeObserver(fitPreview).observe(document.getElementById('preview'));
+        } else {
+            window.addEventListener('resize', fitPreview);
+        }
+        window.addEventListener('load', fitPreview);
 
-  schedulePaint();
-};
+        const state = {
+            view: { scale: 1, x: 0, y: 0 },
+            imgNatural: { w: 0, h: 0 },
+            amount: 0,
+            radius: 1.5,
+            threshold: 0,
+            vignette: { strength: 50, size: 50, soft: 60 }
+        };
 
-setFont(DEF.font); setBg(DEF.bg, true);
-ensureReady().then(() => renderPreview());
-</script>
+        const pref = {
+            get(key, fallback) {
+                try {
+                    const v = localStorage.getItem("csports:news:" + key);
+                    return v === null ? fallback : v;
+                } catch (e) { return fallback; }
+            },
+            set(key, value) {
+                try { localStorage.setItem("csports:news:" + key, value); } catch (e) {}
+            },
+            remove(key) {
+                try { localStorage.removeItem("csports:news:" + key); } catch (e) {}
+            }
+        };
+
+        const TOURNAMENT_LOGO = "https://res.cloudinary.com/dplmdnxvk/image/upload/v1794248680/hpfb428qgmbocmtzyo71.png";
+
+        const BG_SRC_KEY = "boardBgSrc";
+        const BG_VIEW_KEY = "boardBgView";
+        const SHARP_AMOUNT_KEY = "boardSharpenAmount";
+        const SHARP_RADIUS_KEY = "boardSharpenRadius";
+        const SHARP_THRESH_KEY = "boardSharpenThreshold";
+        const VIG_STRENGTH_KEY = "boardVignetteStrength";
+        const VIG_SIZE_KEY = "boardVignetteSize";
+        const VIG_SOFT_KEY = "boardVignetteSoft";
+
+        const bgLayer = document.getElementById('bgLayer');
+        const bgImg = document.getElementById('bgImg');
+        const sharpenCanvas = document.getElementById('sharpenCanvas');
+        const vignetteLayer = document.getElementById('vignetteLayer');
+        const zoomRange = document.getElementById('zoomRange');
+        const zoomVal = document.getElementById('zoomVal');
+        const zoomRow = document.getElementById('zoomRow');
+        const sharpenBox = document.getElementById('sharpenBox');
+        const sharpAmount = document.getElementById('sharpAmount');
+        const sharpAmountVal = document.getElementById('sharpAmountVal');
+        const sharpRadius = document.getElementById('sharpRadius');
+        const sharpRadiusVal = document.getElementById('sharpRadiusVal');
+        const sharpThreshold = document.getElementById('sharpThreshold');
+        const sharpThresholdVal = document.getElementById('sharpThresholdVal');
+        const mapText = document.getElementById('mapText');
+        const mapColorInput = document.getElementById('mapColor');
+        const mapBadge = document.getElementById('mapBadge');
+
+        const vigStrength = document.getElementById('vigStrength');
+        const vigStrengthVal = document.getElementById('vigStrengthVal');
+        const vigSize = document.getElementById('vigSize');
+        const vigSizeVal = document.getElementById('vigSizeVal');
+        const vigSoft = document.getElementById('vigSoft');
+        const vigSoftVal = document.getElementById('vigSoftVal');
+
+        const DEFAULT_MAP_COLOR = "#9a5cf8";
+
+        // Аккордеоны
+        document.querySelectorAll('[data-toggle]').forEach(header => {
+            header.addEventListener('click', () => {
+                const section = document.getElementById(header.dataset.toggle);
+                if (section) section.classList.toggle('collapsed');
+            });
+        });
+        document.querySelectorAll('.subgroup-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const sub = document.getElementById(toggle.dataset.subgroup);
+                if (sub) sub.classList.toggle('collapsed');
+            });
+        });
+
+        function baseFitScale() {
+            const { w, h } = state.imgNatural;
+            if (!w || !h) return 1;
+            return Math.min(BOARD_SIZE / w, BOARD_SIZE / h);
+        }
+        function clampScale(s) {
+            const fit = baseFitScale();
+            return Math.min(fit * 8, Math.max(fit * 0.2, s));
+        }
+
+        function boxBlur(data, w, h, radius) {
+            if (radius < 1) return data;
+            const r = Math.round(radius);
+            const tmp = new Uint8ClampedArray(data.length);
+            for (let y = 0; y < h; y++) {
+                const rowOff = y * w * 4;
+                for (let c = 0; c < 3; c++) {
+                    let sum = 0, cnt = 0;
+                    for (let x = -r; x <= r; x++) {
+                        const xx = Math.min(w - 1, Math.max(0, x));
+                        sum += data[rowOff + xx * 4 + c];
+                        cnt++;
+                    }
+                    for (let x = 0; x < w; x++) {
+                        tmp[rowOff + x * 4 + c] = sum / cnt;
+                        const xOut = Math.min(w - 1, Math.max(0, x - r));
+                        const xIn  = Math.min(w - 1, Math.max(0, x + r + 1));
+                        sum += data[rowOff + xIn * 4 + c] - data[rowOff + xOut * 4 + c];
+                    }
+                }
+                for (let x = 0; x < w; x++) {
+                    tmp[rowOff + x * 4 + 3] = data[rowOff + x * 4 + 3];
+                }
+            }
+            for (let x = 0; x < w; x++) {
+                const colOff = x * 4;
+                for (let c = 0; c < 3; c++) {
+                    let sum = 0, cnt = 0;
+                    for (let y = -r; y <= r; y++) {
+                        const yy = Math.min(h - 1, Math.max(0, y));
+                        sum += tmp[yy * w * 4 + colOff + c];
+                        cnt++;
+                    }
+                    for (let y = 0; y < h; y++) {
+                        data[y * w * 4 + colOff + c] = sum / cnt;
+                        const yOut = Math.min(h - 1, Math.max(0, y - r));
+                        const yIn  = Math.min(h - 1, Math.max(0, y + r + 1));
+                        sum += tmp[yIn * w * 4 + colOff + c] - tmp[yOut * w * 4 + colOff + c];
+                    }
+                }
+            }
+            return data;
+        }
+
+        function unsharpMask(imageData, amount, radius, threshold) {
+            const { data, width: w, height: h } = imageData;
+            if (amount <= 0) return imageData;
+            const blurred = new Uint8ClampedArray(data);
+            boxBlur(blurred, w, h, Math.max(1, Math.round(radius)));
+            const a = amount / 100;
+            for (let i = 0; i < data.length; i += 4) {
+                for (let c = 0; c < 3; c++) {
+                    const orig = data[i + c];
+                    const blur = blurred[i + c];
+                    const diff = orig - blur;
+                    if (Math.abs(diff) <= threshold) continue;
+                    let v = orig + a * diff;
+                    data[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+                }
+            }
+            return imageData;
+        }
+
+        let sharpenRenderId = 0;
+
+        async function renderSharpenPreview() {
+            if (!state.imgNatural.w || !state.imgNatural.h) return;
+            if (state.amount <= 0) {
+                sharpenCanvas.style.display = 'none';
+                sharpenCanvas.width = 0;
+                sharpenCanvas.height = 0;
+                return;
+            }
+            const id = ++sharpenRenderId;
+            const srcCanvas = document.createElement('canvas');
+            srcCanvas.width = state.imgNatural.w;
+            srcCanvas.height = state.imgNatural.h;
+            const sctx = srcCanvas.getContext('2d');
+            try { sctx.drawImage(bgImg, 0, 0); }
+            catch (e) { return; }
+            if (id !== sharpenRenderId) return;
+            const imgData = sctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+            unsharpMask(imgData, state.amount, state.radius, state.threshold);
+            if (id !== sharpenRenderId) return;
+            sharpenCanvas.width = srcCanvas.width;
+            sharpenCanvas.height = srcCanvas.height;
+            const ctx = sharpenCanvas.getContext('2d');
+            ctx.putImageData(imgData, 0, 0);
+            sharpenCanvas.style.display = 'block';
+            applySharpenCanvasTransform();
+        }
+
+        function applySharpenCanvasTransform() {
+            const { scale, x, y } = state.view;
+            const t = `translate(${x}px, ${y}px) scale(${scale})`;
+            bgImg.style.transform = t;
+            sharpenCanvas.style.transform = t;
+        }
+
+        function scheduleSharpenPreview() {
+            clearTimeout(scheduleSharpenPreview._t);
+            scheduleSharpenPreview._t = setTimeout(renderSharpenPreview, 120);
+        }
+
+        function applyView() {
+            applySharpenCanvasTransform();
+            const fit = baseFitScale();
+            const rel = fit ? state.view.scale / fit : 1;
+            if (zoomRange) zoomRange.value = rel;
+            if (zoomVal) zoomVal.textContent = Math.round(rel * 100) + "%";
+        }
+
+        function saveView() { pref.set(BG_VIEW_KEY, JSON.stringify(state.view)); }
+
+        function centerFitView() {
+            const { w, h } = state.imgNatural;
+            if (!w || !h) {
+                state.view = { scale: 1, x: 0, y: 0 };
+                applyView();
+                return;
+            }
+            const fit = baseFitScale();
+            state.view = {
+                scale: fit,
+                x: (BOARD_SIZE - w * fit) / 2,
+                y: (BOARD_SIZE - h * fit) / 2
+            };
+            applyView();
+        }
+
+        function buildVignetteCSS() {
+            const s = state.vignette.strength;
+            const size = state.vignette.size;
+            const soft = state.vignette.soft;
+
+            const edgeAlpha = (s / 100) * 1.0;
+            if (edgeAlpha <= 0) return null;
+
+            const startPct = Math.max(0, Math.min(100, 100 - size));
+            const softPct = Math.max(0, Math.min(100, soft));
+            const fadeStart = Math.max(0, startPct - softPct * 0.5);
+            const fadeEnd = Math.min(100, startPct + 50);
+
+            return `radial-gradient(circle at 50% 50%,
+                rgba(0,0,0,0) ${fadeStart}%,
+                rgba(0,0,0,${(edgeAlpha * 0.35).toFixed(3)}) ${Math.max(fadeStart, (fadeStart+fadeEnd)/2)}%,
+                rgba(0,0,0,${edgeAlpha.toFixed(3)}) ${fadeEnd}%,
+                rgba(0,0,0,${edgeAlpha.toFixed(3)}) 100%)`;
+        }
+
+        function applyVignette() {
+            const css = buildVignetteCSS();
+            const hasBg = bgLayer.classList.contains('visible');
+            if (!css || !hasBg) {
+                vignetteLayer.style.background = 'none';
+                vignetteLayer.classList.remove('visible');
+                return;
+            }
+            vignetteLayer.style.background = css;
+            vignetteLayer.classList.add('visible');
+        }
+
+        function syncVignetteControls() {
+            vigStrength.value = state.vignette.strength;
+            vigStrengthVal.textContent = Math.round(state.vignette.strength) + "%";
+            vigSize.value = state.vignette.size;
+            vigSizeVal.textContent = Math.round(state.vignette.size) + "%";
+            vigSoft.value = state.vignette.soft;
+            vigSoftVal.textContent = Math.round(state.vignette.soft) + "%";
+        }
+
+        vigStrength.addEventListener('input', () => {
+            state.vignette.strength = parseFloat(vigStrength.value) || 0;
+            vigStrengthVal.textContent = Math.round(state.vignette.strength) + "%";
+            pref.set(VIG_STRENGTH_KEY, String(state.vignette.strength));
+            applyVignette();
+        });
+        vigSize.addEventListener('input', () => {
+            state.vignette.size = parseFloat(vigSize.value) || 0;
+            vigSizeVal.textContent = Math.round(state.vignette.size) + "%";
+            pref.set(VIG_SIZE_KEY, String(state.vignette.size));
+            applyVignette();
+        });
+        vigSoft.addEventListener('input', () => {
+            state.vignette.soft = parseFloat(vigSoft.value) || 0;
+            vigSoftVal.textContent = Math.round(state.vignette.soft) + "%";
+            pref.set(VIG_SOFT_KEY, String(state.vignette.soft));
+            applyVignette();
+        });
+
+        function setImage(src) {
+            if (!src) {
+                bgLayer.classList.remove('visible');
+                bgImg.removeAttribute('src');
+                bgImg.style.transform = '';
+                sharpenCanvas.style.display = 'none';
+                sharpenCanvas.width = 0;
+                sharpenCanvas.height = 0;
+                state.imgNatural = { w: 0, h: 0 };
+                state.amount = 0;
+                state.radius = 1.5;
+                state.threshold = 0;
+                pref.remove(BG_SRC_KEY);
+                pref.remove(BG_VIEW_KEY);
+                pref.remove(SHARP_AMOUNT_KEY);
+                pref.remove(SHARP_RADIUS_KEY);
+                pref.remove(SHARP_THRESH_KEY);
+                zoomRow.style.display = 'none';
+                sharpenBox.style.display = 'none';
+                applyVignette();
+                return;
+            }
+            bgImg.onload = () => {
+                state.imgNatural = { w: bgImg.naturalWidth, h: bgImg.naturalHeight };
+                bgLayer.classList.add('visible');
+                zoomRow.style.display = 'flex';
+                sharpenBox.style.display = 'flex';
+
+                const a = parseFloat(pref.get(SHARP_AMOUNT_KEY, "0"));
+                state.amount = isFinite(a) ? Math.max(0, Math.min(300, a)) : 0;
+                const r = parseFloat(pref.get(SHARP_RADIUS_KEY, "1.5"));
+                state.radius = isFinite(r) ? Math.max(0.5, Math.min(8, r)) : 1.5;
+                const t = parseFloat(pref.get(SHARP_THRESH_KEY, "0"));
+                state.threshold = isFinite(t) ? Math.max(0, Math.min(255, t)) : 0;
+
+                let restored = false;
+                try {
+                    const saved = JSON.parse(pref.get(BG_VIEW_KEY, "null"));
+                    if (saved && typeof saved.scale === 'number') {
+                        state.view = saved;
+                        restored = true;
+                    }
+                } catch (e) {}
+
+                syncSharpenControls();
+                if (!restored) centerFitView();
+                else applyView();
+                scheduleSharpenPreview();
+                applyVignette();
+            };
+            bgImg.onerror = () => {
+                UI.status("Не удалось загрузить картинку", "error");
+                bgLayer.classList.remove('visible');
+                zoomRow.style.display = 'none';
+                sharpenBox.style.display = 'none';
+                applyVignette();
+            };
+            bgImg.src = src;
+            pref.set(BG_SRC_KEY, src);
+        }
+
+        function syncSharpenControls() {
+            sharpAmount.value = state.amount;
+            sharpAmountVal.textContent = Math.round(state.amount) + "%";
+            sharpRadius.value = state.radius;
+            sharpRadiusVal.textContent = state.radius.toFixed(1) + "px";
+            sharpThreshold.value = state.threshold;
+            sharpThresholdVal.textContent = Math.round(state.threshold);
+        }
+
+        document.getElementById('applyBgUrl').onclick = () => {
+            const url = document.getElementById('bgUrl').value.trim();
+            if (!url) return;
+            pref.remove(BG_VIEW_KEY);
+            pref.remove(SHARP_AMOUNT_KEY);
+            pref.remove(SHARP_RADIUS_KEY);
+            pref.remove(SHARP_THRESH_KEY);
+            state.amount = 0; state.radius = 1.5; state.threshold = 0;
+            setImage(url);
+            UI.status("Фон загружается...", "info");
+        };
+        document.getElementById('bgUrl').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('applyBgUrl').click();
+        });
+        document.getElementById('bgFile').addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) { UI.status("Это не изображение", "error"); return; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                pref.remove(BG_VIEW_KEY);
+                pref.remove(SHARP_AMOUNT_KEY);
+                pref.remove(SHARP_RADIUS_KEY);
+                pref.remove(SHARP_THRESH_KEY);
+                state.amount = 0; state.radius = 1.5; state.threshold = 0;
+                setImage(reader.result);
+                UI.status("Фон установлен из файла", "success");
+                e.target.value = "";
+            };
+            reader.onerror = () => UI.status("Не удалось прочитать файл", "error");
+            reader.readAsDataURL(file);
+        });
+        document.getElementById('clearBg').onclick = () => {
+            document.getElementById('bgUrl').value = "";
+            setImage("");
+            UI.status("Фон сброшен", "success");
+        };
+
+        zoomRange.addEventListener('input', () => {
+            const fit = baseFitScale();
+            const rel = parseFloat(zoomRange.value) || 1;
+            const newScale = clampScale(fit * rel);
+            const cx = BOARD_SIZE / 2, cy = BOARD_SIZE / 2;
+            const { scale, x, y } = state.view;
+            const ratio = newScale / scale;
+            state.view = {
+                scale: newScale,
+                x: cx - (cx - x) * ratio,
+                y: cy - (cy - y) * ratio
+            };
+            applyView();
+            saveView();
+        });
+        document.getElementById('resetView').onclick = () => {
+            centerFitView();
+            saveView();
+        };
+
+        sharpAmount.addEventListener('input', () => {
+            state.amount = parseFloat(sharpAmount.value) || 0;
+            sharpAmountVal.textContent = Math.round(state.amount) + "%";
+            pref.set(SHARP_AMOUNT_KEY, String(state.amount));
+            scheduleSharpenPreview();
+        });
+        sharpRadius.addEventListener('input', () => {
+            state.radius = parseFloat(sharpRadius.value) || 1.5;
+            sharpRadiusVal.textContent = state.radius.toFixed(1) + "px";
+            pref.set(SHARP_RADIUS_KEY, String(state.radius));
+            scheduleSharpenPreview();
+        });
+        sharpThreshold.addEventListener('input', () => {
+            state.threshold = parseFloat(sharpThreshold.value) || 0;
+            sharpThresholdVal.textContent = Math.round(state.threshold);
+            pref.set(SHARP_THRESH_KEY, String(state.threshold));
+            scheduleSharpenPreview();
+        });
+
+        function updateMapBadge() {
+            const text = mapText.value.trim();
+            mapBadge.textContent = text ? text.toUpperCase() : "";
+            mapBadge.style.background = mapColorInput.value || DEFAULT_MAP_COLOR;
+        }
+        mapText.oninput = () => { pref.set("mapText", mapText.value); updateMapBadge(); };
+        mapColorInput.oninput = () => { pref.set("mapColor", mapColorInput.value); updateMapBadge(); };
+        mapText.value = pref.get("mapText", "");
+        mapColorInput.value = pref.get("mapColor", DEFAULT_MAP_COLOR);
+        updateMapBadge();
+
+        const preview = document.getElementById('preview');
+        const previewScaleK = () => preview.clientWidth / BOARD_SIZE;
+
+        let drag = null;
+        let pinch = null;
+        const activePointers = new Map();
+
+        bgLayer.addEventListener('pointerdown', (e) => {
+            if (!bgLayer.classList.contains('visible')) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (e.pointerType === 'touch') {
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size === 2) {
+                    drag = null;
+                    const pts = Array.from(activePointers.values());
+                    pinch = {
+                        startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+                        startView: { ...state.view },
+                        mid: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+                    };
+                    return;
+                }
+                if (activePointers.size > 2) return;
+            }
+
+            drag = {
+                startX: e.clientX,
+                startY: e.clientY,
+                startView: { ...state.view },
+                pointerId: e.pointerId
+            };
+            bgLayer.setPointerCapture?.(e.pointerId);
+            bgLayer.classList.add('dragging');
+            e.preventDefault();
+        });
+
+        bgLayer.addEventListener('pointermove', (e) => {
+            if (e.pointerType === 'touch' && activePointers.has(e.pointerId)) {
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (pinch && activePointers.size === 2) {
+                    e.preventDefault();
+                    const pts = Array.from(activePointers.values());
+                    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                    if (!pinch.startDist) return;
+                    const factor = dist / pinch.startDist;
+                    const newScale = clampScale(pinch.startView.scale * factor);
+                    const ratio = newScale / pinch.startView.scale;
+                    const rect = preview.getBoundingClientRect();
+                    const k = previewScaleK();
+                    const mx = (pinch.mid.x - rect.left) / k;
+                    const my = (pinch.mid.y - rect.top) / k;
+                    state.view = {
+                        scale: newScale,
+                        x: mx - (mx - pinch.startView.x) * ratio,
+                        y: my - (my - pinch.startView.y) * ratio
+                    };
+                    applyView();
+                    return;
+                }
+            }
+
+            if (!drag) return;
+            if (e.pointerId !== drag.pointerId) return;
+            const k = previewScaleK();
+            state.view = {
+                scale: drag.startView.scale,
+                x: drag.startView.x + (e.clientX - drag.startX) / k,
+                y: drag.startView.y + (e.clientY - drag.startY) / k
+            };
+            applyView();
+        });
+
+        function endPointer(e) {
+            if (e.pointerType === 'touch') {
+                activePointers.delete(e.pointerId);
+                if (activePointers.size < 2 && pinch) { pinch = null; saveView(); }
+            }
+            if (drag && e.pointerId === drag.pointerId) {
+                drag = null;
+                bgLayer.classList.remove('dragging');
+                bgLayer.releasePointerCapture?.(e.pointerId);
+                saveView();
+            }
+        }
+        bgLayer.addEventListener('pointerup', endPointer);
+        bgLayer.addEventListener('pointercancel', endPointer);
+        bgLayer.addEventListener('pointerleave', (e) => {
+            if (e.pointerType === 'mouse') endPointer(e);
+        });
+
+        bgLayer.addEventListener('wheel', (e) => {
+            if (!bgLayer.classList.contains('visible')) return;
+            e.preventDefault();
+            const rect = preview.getBoundingClientRect();
+            const k = previewScaleK();
+            const px = (e.clientX - rect.left) / k;
+            const py = (e.clientY - rect.top) / k;
+            const { scale, x, y } = state.view;
+            const factor = Math.exp(-e.deltaY * 0.0015);
+            const newScale = clampScale(scale * factor);
+            const ratio = newScale / scale;
+            state.view = {
+                scale: newScale,
+                x: px - (px - x) * ratio,
+                y: py - (py - y) * ratio
+            };
+            applyView();
+            saveView();
+        }, { passive: false });
+
+        (function restoreState() {
+            const saved = pref.get(BG_SRC_KEY, "");
+            if (saved) setImage(saved);
+            else document.getElementById('board').classList.add('plain-bg');
+
+            const vs = parseFloat(pref.get(VIG_STRENGTH_KEY, "50"));
+            state.vignette.strength = isFinite(vs) ? Math.max(0, Math.min(100, vs)) : 50;
+            const vz = parseFloat(pref.get(VIG_SIZE_KEY, "50"));
+            state.vignette.size = isFinite(vz) ? Math.max(0, Math.min(100, vz)) : 50;
+            const vf = parseFloat(pref.get(VIG_SOFT_KEY, "60"));
+            state.vignette.soft = isFinite(vf) ? Math.max(0, Math.min(100, vf)) : 60;
+
+            syncVignetteControls();
+            applyVignette();
+        })();
+
+        function initTournamentLogo() {
+            document.getElementById('tournamentLogo').style.backgroundImage = `url("${TOURNAMENT_LOGO}")`;
+        }
+
+        function updateTitles() {
+            const top = document.getElementById('titleTop').value.trim();
+            const middle = document.getElementById('titleBottom').value.trim();
+            const third = document.getElementById('titleThird').value.trim();
+
+            const topEl = document.getElementById('titleTopLine');
+            const midEl = document.getElementById('titleBottomLine');
+            const thirdEl = document.getElementById('titleThirdLine');
+
+            topEl.textContent = top ? top.toUpperCase() : "";
+            topEl.style.display = top ? "" : "none";
+
+            midEl.textContent = middle ? middle.toUpperCase() : "";
+            midEl.style.display = middle ? "" : "none";
+
+            thirdEl.textContent = third ? third.toUpperCase() : "";
+            thirdEl.style.display = third ? "" : "none";
+        }
+
+        document.getElementById('titleTop').oninput = () => {
+            pref.set("titleTop", document.getElementById('titleTop').value);
+            updateTitles();
+        };
+        document.getElementById('titleBottom').oninput = () => {
+            pref.set("titleBottom", document.getElementById('titleBottom').value);
+            updateTitles();
+        };
+        document.getElementById('titleThird').oninput = () => {
+            pref.set("titleThird", document.getElementById('titleThird').value);
+            updateTitles();
+        };
+
+        document.getElementById('titleTop').value = pref.get("titleTop", "ЗАГОЛОВОК НОВОСТИ");
+        document.getElementById('titleBottom').value = pref.get("titleBottom", "");
+        document.getElementById('titleThird').value = pref.get("titleThird", "");
+
+        const RENDER_SCALE = /iPhone|iPad|iPod/.test(navigator.userAgent) ? 3 : 4;
+
+        async function makeSharpenedSourceCanvas() {
+            const w = state.imgNatural.w;
+            const h = state.imgNatural.h;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(bgImg, 0, 0);
+            if (state.amount > 0) {
+                const imgData = ctx.getImageData(0, 0, w, h);
+                unsharpMask(imgData, state.amount, state.radius, state.threshold);
+                ctx.putImageData(imgData, 0, 0);
+            }
+            return c;
+        }
+
+        async function renderToCanvas() {
+            const container = document.getElementById('board');
+            const clone = container.cloneNode(true);
+            clone.style.transform = 'none';
+            clone.style.transformOrigin = '0 0';
+            clone.style.position = 'fixed';
+            clone.style.top = '-10000px';
+            clone.style.left = '-10000px';
+            clone.style.width = BOARD_SIZE + 'px';
+            clone.style.height = BOARD_SIZE + 'px';
+            clone.style.margin = '0';
+            clone.style.zIndex = '-1';
+
+            // Убираем интерактивные/проблемные слои из клона
+            const cloneBgLayer = clone.querySelector('#bgLayer');
+            if (cloneBgLayer) cloneBgLayer.remove();
+
+            const cloneVignette = clone.querySelector('#vignetteLayer');
+            if (cloneVignette) cloneVignette.remove();
+
+            document.body.appendChild(clone);
+
+            try {
+                // 1) Резкий фон (уже с применённым Unsharp Mask)
+                if (state.imgNatural.w > 0) {
+                    const sharpenedCanvas = await makeSharpenedSourceCanvas();
+                    const wrap = document.createElement('div');
+                    wrap.style.cssText = 'position:absolute;left:0;top:0;width:1000px;height:1000px;overflow:hidden;z-index:0;';
+                    const cv = document.createElement('canvas');
+                    cv.width = sharpenedCanvas.width;
+                    cv.height = sharpenedCanvas.height;
+                    cv.getContext('2d').drawImage(sharpenedCanvas, 0, 0);
+                    cv.style.cssText = `position:absolute;left:0;top:0;transform-origin:0 0;transform:translate(${state.view.x}px,${state.view.y}px) scale(${state.view.scale});`;
+                    wrap.appendChild(cv);
+                    clone.insertBefore(wrap, clone.firstChild);
+
+                    // 2) Виньетка как отдельный слой без mix-blend-mode
+                    const vigCss = buildVignetteCSS();
+                    if (vigCss) {
+                        const vig = document.createElement('div');
+                        vig.style.cssText = 'position:absolute;left:0;top:0;width:1000px;height:1000px;z-index:1;pointer-events:none;';
+                        vig.style.background = vigCss;
+                        clone.insertBefore(vig, wrap.nextSibling);
+                    }
+                }
+
+                // 3) Дожидаемся загрузки логотипа турнира
+                const logo = clone.querySelector('#tournamentLogo');
+                if (logo) {
+                    const bg = logo.style.backgroundImage;
+                    const m = /url\(["']?([^"')]+)["']?\)/.exec(bg || '');
+                    if (m) {
+                        await new Promise(resolve => {
+                            const im = new Image();
+                            im.crossOrigin = 'anonymous';
+                            im.onload = () => resolve();
+                            im.onerror = () => resolve();
+                            im.src = m[1];
+                        });
+                    }
+                }
+
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+                return await html2canvas(clone, {
+                    useCORS: true,
+                    allowTaint: false,
+                    scale: RENDER_SCALE,
+                    backgroundColor: null,
+                    width: BOARD_SIZE,
+                    height: BOARD_SIZE,
+                    scrollX: 0, scrollY: 0,
+                    windowWidth: BOARD_SIZE, windowHeight: BOARD_SIZE,
+                    imageTimeout: 30000,
+                    logging: false,
+                    removeContainer: true
+                });
+            } finally {
+                clone.remove();
+            }
+        }
+
+        document.getElementById('downloadBtn').onclick = async () => {
+            const btn = document.getElementById('downloadBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Готовим...";
+            try {
+                const canvas = await renderToCanvas();
+                const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
+                if (!blob) throw new Error("Не удалось создать PNG");
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = `news-card-${Date.now()}.png`;
+                a.href = url;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                UI.status(`Готово: ${canvas.width}×${canvas.height} px, ${(blob.size / 1024 / 1024).toFixed(2)} МБ`, "success");
+            } catch (e) {
+                UI.status("Ошибка при скачивании: " + e.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        };
+
+        document.getElementById('shareBtn').onclick = async () => {
+            const btn = document.getElementById('shareBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Готовим...";
+            try {
+                const canvas = await renderToCanvas();
+                const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
+                if (!blob) throw new Error("Не удалось создать PNG");
+                const file = new File([blob], "news-card.png", { type: "image/png" });
+                if (!(navigator.canShare && navigator.canShare({ files: [file] })))
+                    throw new Error("Ваш браузер не поддерживает Share API.");
+                try { await navigator.share({ files: [file] }); }
+                catch (e) { if (e.name !== "AbortError") throw e; }
+            } catch (e) {
+                UI.status(e.message.startsWith("Ваш") ? e.message : "Ошибка при попытке поделиться: " + e.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        };
+
+        initTournamentLogo();
+        updateTitles();
+    </script>
 </body>
 </html>
