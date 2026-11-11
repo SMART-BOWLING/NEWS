@@ -139,7 +139,7 @@
         .preview {
             position: relative; width: 100%; max-width: 521px; aspect-ratio: 1 / 1;
             flex-shrink: 0; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            border-radius: 12px; background: #2c3e50; order: -1;
+            border-radius: 12px; background: #000; order: -1;
         }
         @media (min-width: 1100px) {
             .app-container { flex-direction: row; align-items: flex-start; justify-content: center; gap: 40px; }
@@ -156,13 +156,14 @@
         /* === Доска === */
         .board {
             position: absolute; top: 0; left: 0; width: 1000px; height: 1000px;
-            background-color: #000; /* Чёрный фон */
             background-size: cover; background-position: center; background-repeat: no-repeat;
             padding: 0; box-sizing: border-box; transform-origin: 0 0;
             transform: scale(var(--k, 0.521)); overflow: hidden; color: #fff;
+            background-color: #000;
             --font-heading: "Oswald", "Arial Narrow", Impact, sans-serif;
             --font-label: "Montserrat", Arial, sans-serif;
         }
+        .board.plain-bg { background-image: none; background-color: #000; }
 
         .bg-layer {
             position: absolute; top: 0; left: 0; width: 1000px; height: 1000px;
@@ -230,7 +231,7 @@
         }
         .footer2 .fp.insta {
             left: 179px; top: 1px; width: 42px; height: 42px;
-            background: #9a5cf8 url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdCAYAAABWk2cPAAABdmlDQ1BJQ0MgUHJvZmlsZQAAeJx1kT1Lw1AUhp9WpWIrRXQQceigolBBFMRR69CliNQKVl3S2A8haUPSIsVVcHEoOIgufg3+A10FVwVBUAQRZ0e/FpF4rhEqojfcnIf33vdw8gb8CUM3ncZxMItlOxmPRebS85HAIy20EWSAsKY71sT0dIJ/19s1PlWvBlWv/+/9uYJLWUcHX7PwqG7ZZWGZhsRK2VK8IdyhF7Ql4T3hqC0DCp8rPePxg+K8xy+K7VRyEvyqZyT/gzM/WC/YpnC/cI9pVPTvedSXhLLF2RmpXbK7cUgSJ0aEDBWWMSgzKLUomf3tG/ryTVESjy5viyq2OPIUxBsVtSJds1JzomflMaiq3H/n6eRGhr3uoRg03bvucy8ENuGj5rrv+677cQANd3BarPtLktPYq+i1utazC+E1OD6ra5ktOFmHzltLs7UvqUG2P5eDpyNoTUP7JbQseFl9n3N4A6lV+UUXsL0DfXI/vPgJBhxoDIbKDO0AAALNSURBVHicrZfLS1VRFMZ/93pNKykwwQwxiqsQ1KRBUT4QogdW/0MTnUQQQQ0i0B6DiggCoccgImjULFAhByGlERVUUJZBUiqRDXrg61rwLdH09rnnlh9s1jl7r/N9a++91j7npCSRAGuBPUAjsAmoBVYAM8A4MAwMAfeBzwXZJMW1rKRbknJKhpyk25Ia4njjBDsTCvnQVYxoSlLffwrm0S+ptJBoiaTnSySYxytJZUGddGiL+4CtSTKrCGyxBFtASovZexjojnn4NfATiEr3FLAGaIh5/jhwCVhY3uqY5bke3pOYVimpN4arVhIZi+KUJ7pu4AiuRg/ZbAjNNgVUmO0A2oAHQGsEXyfQjqSMpKmIqGYt+rYEyTIn6aakGUn1klZ6/HKSypG01+PQa6Ijof4fkq5IOibpjvX1mO+QpGd2PeHhPZgBWjxL+8VsRaDvEdAc8jtry/kQ2AY8tv6vwLoI3uY0kPWIlpqdNfvDBOuAEWAeGADe4s7kJqAEmDT/DNHYmAY2eAZTofuLZt8B9RZUC662PwA9BcTyyKaBqgJOefEBIywPje8zO1SAJ4+qNDBWwClfHq3Ab2AuNN5ndmdC0dE08DGh8wncrLO402kG6MfV5Xpgv/mFt+Uv0QzwxjM4b3a52VW4DG0CNgf86ljMWHAvd4BfHt7htEUbhUqzU4G+RmAauAGcBO7iVqom4DNh1pcr/fkzcyyiiL/b2AFPkftQJ2mZZ2xcgbP3srUgVuPO5HO4/ToKVHuiFzAKdAGfgHseP6dhs8lImvREd0bJ3zLIfVNFYVL2FRF8n7bgajEK08BT4JvdBzNUdl8N7PA8D67kBoIzzbfzRexdMbgQ1IlanqtLLHgtrOHbl64lEjwdxR+XELslvfhHsZeSdvm4k2Rju6TBhGKDkjoKcQaztxDqge24f5kaoAzI4f5dhoEnwPskRH8AZ0MT30dYLz8AAAAASUVORK5CYII=) center / 30px 30px no-repeat;
+            background: #9a5cf8 url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdCAYAAABWk2cPAAABdmlDQ1BJQ0MgUHJvZmlsZQAAeJx1kT1Lw1AUhp9WpWIrRXQQceigolBBFMRR69CliNQKVl3S2A8haUPSIsVVcHEoOIgufg3+A10FVwVBUAQRZ0e/FpF4rhEqojfcnIf33vdw8gb8CUM3ncZxMItlOxmPRebS85HAIy20EWSAsKY71sT0dIJ/19s1PlWvBlWv/+/9uYJLWUcHX7PwqG7ZZWGZhsRK2VK8IdyhF7Ql4T3hqC0DCp8rPePxg+K8xy+K7VRyEvyqZyT/gzM/WC/YpnC/cI9pVPTvedSXhLLF2RmpXbK7cUgSJ0aEDBWWMSgzKLUomf3tG/ryTVESjy5viyq2OPIUxBsVtSJds1JzomflMaiq3H/n6eRGhr3uoRg03bvucy8ENuGj5rrv+677cQANd3BarPtLktPYq+i1utazC+E1OD6ra5ktOFmHzltLs7UvqUG2P5eDpyNoTUP7JbQseFl9n3N4A6lV+UUXsL0DfXI/vPgJBhxoDIbKDO0AAALNSURBVHicrZfLS1VRFMZ/93pNKykwwQwxiqsQ1KRBUT4QogdW/0MTnUQQQQ0i0B6DiggCoccgImjULFAhByGlERVUUJZBUiqRDXrg61rwNdjr6uF09rnnlh9s1jl7r/N9a++91j7npCSRAGuBPUAjsAmoBVYAM8A4MAwMAfeBzwXZJMW1rKRbknJKhpyk25Ia4njjBDsTCvnQVYxoSlLffwrm0S+ptJBoiaTnSySYxytJZUGddGiL+4CtSTKrCGyxBFtASovZexjojnn4NfATiEr3FLAGaIh5/jhwCVhY3uqY5bke3pOYVimpN4arVhIZi+KUJ7pu4AiuRg/ZbAjNNgVUmO0A2oAHQGsEXyfQjqSMpKmIqGYt+rYEyTIn6aakGUn1klZ6/HKSypG01+PQa6Ijof4fkq5IOibpjvX1mO+QpGd2PeHhPZgBWjxL+8VsRaDvEdAc8jtry/kQ2AY8tv6vwLoI3uY0kPWIlpqdNfvDBOuAEWAeGADe4s7kJqAEmDT/DNHYmAY2eAZTofuLZt8B9RZUC662PwA9BcTyyKaBqgJOefEBIywPje8zO1SAJ4+qNDBWwClfHq3Ab2AuNN5ndmdC0dE08DGh8wncrLO402kG6MfV5Xpgv/mFt+Uv0QzwxjM4b3a52VW4DG0CNgf86ljMWHAvd4BfHt7htEUbhUqzU4G+RmAauAGcBO7iVqom4DNh1pcr/fkzcyyiiL/b2AFPkftQJ2mZZ2xcgbP3srUgVuPO5HO4/ToKVHuiFzAKdAGfgHseP6dhs8lImvREd0bJ3zLIfVNFYVL2FRF8n7bgajEK08BT4JvdBzNUdl8N7PA8D67kBoIzzbfzRexdMbgQ1IlanqtLLHgtrOHbl64lEjwdxR+XELslvfhHsZeSdvm4k2Rju6TBhGKDkjoKcQaztxDqge24f5kaoAzI4f5dhoEnwPskRH8AZ0MT30dYLz8AAAAASUVORK5CYII=) center / 30px 30px no-repeat;
         }
         .footer2 .fp.tg {
             left: 229px; top: 1px; width: 42px; height: 42px;
@@ -1001,7 +1002,7 @@
         (function restoreState() {
             const saved = pref.get(BG_SRC_KEY, "");
             if (saved) setImage(saved);
-            // Чёрный фон теперь по умолчанию, класс plain-bg не нужен
+            else document.getElementById('board').classList.add('plain-bg');
 
             const vs = parseFloat(pref.get(VIG_STRENGTH_KEY, "50"));
             state.vignette.strength = isFinite(vs) ? Math.max(0, Math.min(100, vs)) : 50;
@@ -1139,7 +1140,7 @@
                     useCORS: true,
                     allowTaint: false,
                     scale: RENDER_SCALE,
-                    backgroundColor: '#000000', /* Чёрный фон при экспорте */
+                    backgroundColor: null,
                     width: BOARD_SIZE,
                     height: BOARD_SIZE,
                     scrollX: 0, scrollY: 0,
